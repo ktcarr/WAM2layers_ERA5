@@ -1,0 +1,8 @@
+*.egg-info
+*.log
+*.swp
+envs
+data
+results
+scripts/old
+scripts/.ipynb_checkpoints
