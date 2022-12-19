@@ -1,13 +1,20 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 21 12:38:45 2016
-
-@author: Ent00002
-"""
 import numpy as np
 import xarray as xr
+import calendar
 
-### Physical constants ###
+## get indices for day of year
+def get_doy_indices(doy_start, doy_end, year):
+    """Get indices for days of year in given year,
+    based on specifed start and end doy"""
+
+    if doy_start is None:
+        is_leap_year = int(calendar.isleap(year))
+        doy = np.arange(1, 366 + is_leap_year)
+    else:
+        doy = np.arange(doy_start, doy_end + 1)
+    doy_indices = doy - 1  # indices start with 0
+
+    return doy_indices
 
 
 def get_longitude(lon_min, lon_max, dlon):

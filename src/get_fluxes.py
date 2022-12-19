@@ -1,12 +1,3 @@
-"""get_fluxes.py: Compute fluxes from reanalysis data"""
-"""
-@author: Ent00002
-"""
-
-### TODO ###
-# instead of specifying years / doy to start, input dates
-
-#%% Import libraries
 import numpy as np
 import xarray as xr
 import pandas as pd
@@ -14,7 +5,6 @@ import scipy.io as sio
 from scipy.interpolate import interp1d
 from multiprocessing import Pool
 import numpy.ma as ma
-import calendar
 from getconstants import getconstants
 from timeit import default_timer as timer
 from os.path import join
@@ -843,8 +833,8 @@ if __name__ == "__main__":
 
     ## Specify year and days of year for tracking
     parser.add_argument("--year", dest="year", type=int)
-    parser.add_argument("--doy_start", dest="doy_start", type=int, default="none")
-    parser.add_argument("--doy_end", dest="doy_end", type=int, default="none")
+    parser.add_argument("--doy_start", dest="doy_start", type=int)
+    parser.add_argument("--doy_end", dest="doy_end", type=int)
 
     ## Specify lon/lat grid for tracking
     parser.add_argument("--lon_min", dest="lon_min", type=float, default=0.0)
@@ -887,156 +877,155 @@ if __name__ == "__main__":
     L_S_gridcell = constants["L_S_gridcell"]
     L_EW_gridcell = constants["L_EW_gridcell"]
 
-    ## get indices for day of year
-    doy = np.arange(args.doy_start, args.doy_end + 1)
-    doy_indices = doy - 1  # indices start with 0
-
-    ly = int(calendar.isleap(year))  # is this a leap year?
-    final_time = 364 + ly
+    # Get days of year
+    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year) 
 
     #### Loop through days
-    for a in yearpart:  # a > 365 (366th index) and not a leapyear
+    for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
         start = timer()
         datapath = data_path(year, a)  # global variable
-        if a > final_time:
-            pass
+        
+        # below: the coefficient of a must be multiple of daily sampling frequency 
+        # (e.g. 8/day for 3-hourly data)
+        begin_time = a * args.count_time
+
+        # If at the last day of data, can't fetch next day's data 
+        # (need to reduce number of timesteps by 1)
+        is_last_doy = (doy_idx==doy_indices[-1])
+        if is_last_doy:
+            count_time_ = args,count_time-1
         else:
-            # below: the coefficient of a must be multiple of daily sampling frequency (e.g. 8/day for 3-hourly data)
-            begin_time = a * count_time
+            count_time = args.count_time
+        
+        # 1 Interpolate U,V,Q data to match surface pressure
+        UVQ_RAW = getUVQ(
+            latitude, longitude, final_time, doy_idx, begin_time, count_time_
+        )
+        Pres, DP, LEVELS = getPres(
+            latitude,
+            longitude,
+            final_time,
+            doy_idx,
+            begin_time,
+            count_time_,
+            top_level=100,
+            n_levels=37,
+        )
+        U, V, Q = interp_uvq(count_time_)
 
-            # If at the last day of data, can't fetch next day's data (need to reduce number of timesteps by 1)
-            # count_time_ = count_time-1 if ((yearnumber==2021) & (a==89)) else count_time
-            count_time_ = count_time - 1 if (a == yearpart[-1]) else count_time
+        # 2 integrate specific humidity to get the (total) column water (vapor)
+        cw, W_top, W_down = getW(
+            Q,
+            DP,
+            latitude,
+            longitude,
+            final_time,
+            doy_idx,
+            begin_time,
+            count_time_,
+            density_water,
+            g,
+            A_gridcell,
+            boundary,
+        )
 
-            # 1 Interpolate U,V,Q data to match surface pressure
-            UVQ_RAW = getUVQ(
-                latitude, longitude, final_time, a, begin_time, count_time_
-            )
-            Pres, DP, LEVELS = getPres(
-                latitude,
-                longitude,
-                final_time,
-                a,
-                begin_time,
-                count_time_,
-                top_level=100,
-                n_levels=37,
-            )
-            U, V, Q = interp_uvq(count_time_)
+        # 3 calculate horizontal moisture fluxes
+        Fa_E_top, Fa_N_top, Fa_E_down, Fa_N_down = getFa(
+            latitude,
+            longitude,
+            boundary,
+            cw,
+            U,
+            V,
+            count_time_,
+            begin_time,
+            year,
+            doy_idx,
+            final_time,
+        )
 
-            # 2 integrate specific humidity to get the (total) column water (vapor)
-            cw, W_top, W_down = getW(
-                Q,
-                DP,
-                latitude,
-                longitude,
-                final_time,
-                a,
-                begin_time,
-                count_time_,
-                density_water,
-                g,
-                A_gridcell,
-                boundary,
-            )
+        # 4 evaporation and precipitation
+        E, P = getEP(latitude, longitude, year, begin_time, count_time_, A_gridcell)
 
-            # 3 calculate horizontal moisture fluxes
-            Fa_E_top, Fa_N_top, Fa_E_down, Fa_N_down = getFa(
-                latitude,
-                longitude,
-                boundary,
-                cw,
-                U,
-                V,
-                count_time_,
-                begin_time,
-                year,
-                a,
-                final_time,
-            )
+        # 5 put data on a smaller time step
+        (
+            Fa_E_top_1,
+            Fa_N_top_1,
+            Fa_E_down_1,
+            Fa_N_down_1,
+            E,
+            P,
+            W_top,
+            W_down,
+        ) = getrefined(
+            Fa_E_top,
+            Fa_N_top,
+            Fa_E_down,
+            Fa_N_down,
+            W_top,
+            W_down,
+            E,
+            P,
+            divt,
+            count_time_,
+            latitude,
+            longitude,
+        )
 
-            # 4 evaporation and precipitation
-            E, P = getEP(latitude, longitude, year, begin_time, count_time_, A_gridcell)
+        # 6 stabilize horizontal fluxes and get everything in (m3 per smaller timestep)
+        Fa_E_top, Fa_E_down, Fa_N_top, Fa_N_down = get_stablefluxes(
+            W_top,
+            W_down,
+            Fa_E_top_1,
+            Fa_E_down_1,
+            Fa_N_top_1,
+            Fa_N_down_1,
+            timestep,
+            divt,
+            L_EW_gridcell,
+            density_water,
+            L_N_gridcell,
+            L_S_gridcell,
+            latitude,
+            count_time_,
+        )
 
-            # 5 put data on a smaller time step
-            (
-                Fa_E_top_1,
-                Fa_N_top_1,
-                Fa_E_down_1,
-                Fa_N_down_1,
-                E,
-                P,
-                W_top,
-                W_down,
-            ) = getrefined(
-                Fa_E_top,
-                Fa_N_top,
-                Fa_E_down,
-                Fa_N_down,
-                W_top,
-                W_down,
-                E,
-                P,
-                divt,
-                count_time_,
-                latitude,
-                longitude,
-            )
+        # 7 determine the vertical moisture flux
+        Fa_Vert_raw, Fa_Vert = getFa_Vert(
+            Fa_E_top,
+            Fa_E_down,
+            Fa_N_top,
+            Fa_N_down,
+            E,
+            P,
+            W_top,
+            W_down,
+            divt,
+            count_time_,
+            latitude,
+            longitude,
+        )
 
-            # 6 stabilize horizontal fluxes and get everything in (m3 per smaller timestep)
-            Fa_E_top, Fa_E_down, Fa_N_top, Fa_N_down = get_stablefluxes(
-                W_top,
-                W_down,
-                Fa_E_top_1,
-                Fa_E_down_1,
-                Fa_N_top_1,
-                Fa_N_down_1,
-                timestep,
-                divt,
-                L_EW_gridcell,
-                density_water,
-                L_N_gridcell,
-                L_S_gridcell,
-                latitude,
-                count_time_,
-            )
-
-            # 7 determine the vertical moisture flux
-            Fa_Vert_raw, Fa_Vert = getFa_Vert(
-                Fa_E_top,
-                Fa_E_down,
-                Fa_N_top,
-                Fa_N_down,
-                E,
-                P,
-                W_top,
-                W_down,
-                divt,
-                count_time_,
-                latitude,
-                longitude,
-            )
-
-            sio.savemat(
-                datapath[24],
-                {
-                    "Fa_E_top": Fa_E_top,
-                    "Fa_N_top": Fa_N_top,
-                    "Fa_E_down": Fa_E_down,
-                    "Fa_N_down": Fa_N_down,
-                    "Fa_Vert": Fa_Vert,
-                    "E": E,
-                    "P": P,
-                    "W_top": W_top,
-                    "W_down": W_down,
-                },
-                do_compression=True,
-            )
+        sio.savemat(
+            datapath[24],
+            {
+                "Fa_E_top": Fa_E_top,
+                "Fa_N_top": Fa_N_top,
+                "Fa_E_down": Fa_E_down,
+                "Fa_N_down": Fa_N_down,
+                "Fa_Vert": Fa_Vert,
+                "E": E,
+                "P": P,
+                "W_top": W_top,
+                "W_down": W_down,
+            },
+            do_compression=True,
+        )
 
         end = timer()
         print(
             "Runtime fluxes_and_storages for day "
-            + str(a + 1)
+            + str(doy_idx + 1)
             + " in year "
             + str(year)
             + " is",
