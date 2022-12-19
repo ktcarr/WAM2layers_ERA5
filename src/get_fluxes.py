@@ -41,8 +41,8 @@ def get_datapath(yearnumber, a, input_folder, interdata_folder):
     v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
     q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
 
-    evaporation_data = get_fps("e-p", yearnumber, input_folder)[0]
-    precipitation_data = get_fps("e-p", yearnumber, input_folder)[0]
+    evaporation_data = get_fps("evaporation", yearnumber, input_folder)[0]
+    precipitation_data = get_fps("total_precipitation", yearnumber, input_folder)[0]
 
     save_path = join(
         interdata_folder, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
