@@ -3,20 +3,19 @@
 ## File structure  
 ```
 |-- scripts  
-     -- backtrack_parallel.sh  
-     -- backtrack.sh  
-     -- get_fluxes_parallel.sh   
      -- get_fluxes.sh  
+     -- backtrack.sh  
+     -- backtrack_parallel.sh  
+     -- get_fluxes_parallel.sh   
     |-- move_to_scratch  
          -- move_to_scratch.sh  
          -- move_to_scratch_parallel.sh  
 |-- src  
      -- __init__.py  
-     -- backtrack.py  
-     -- getconstants.py  
      -- get_fluxes.py  
-     -- params.py  
+     -- backtrack.py  
      -- postprocess.py  
+     -- utils.py    
 |-- tests  
  -- .gitignore  
  -- environment.yml  
@@ -44,6 +43,8 @@
 
 ```move_to_scratch_parallel.sh```: Move all years in parallel.  
 
+```get_fluxes.sh```: bash script to compute fluxes. Contains parameters for given experiment; this inclues lon/lat ranges, filepaths, and numerical parameters.  
+
 
 ## Description of files in ```./src/```
 
@@ -53,13 +54,7 @@
 
 ```postprocess.py```: Compute tracked evaporation, and put data in nicer netcdf format. 
 
-```getconstants.py```: Contains constants (e.g., value of $g$).
-   
-```params.py```: parameters for given experiment, including lon/lat ranges, and directories to save to.
+```utils.py```: Compute constants (e.g., gridcell area)  
 
 ## Running the model
-1. Run `get_fluxes_new.sh' to compute fluxes with specified timestep value (set by divt in parameter file). Parameter files are found in `run/params/midwest_global' folder.  
-
-2. Run `backtrack_and_postprocess' to track moisture back in time and postprocess output. Need to specify flux parameter file and kvf. Note: this version of the script processes each year separately, meaning that rainfall in jan/feb may not be accurately tracked.  
-
-3. Run `python /vortexfs1/home/kcarr/iap-2021/aggregate_output.py' to put .mat files output from moisture tracking into a nicer NetCDF4 format.  
+1. Edit parameters as desired in the ```get_fluxes.sh``` script. After editing, run a single year with ```./get_fluxes --year <YEAR>```  
