@@ -18,7 +18,7 @@ def fix_lon(lon):
     return lon
 
 
-def get_fps(name, yearnumber):
+def get_fps(name, yearnumber, input_folder):
     """Get filepaths for given variable ('name') and year"""
     sep = "-"  # if name=='uvq' else '_'
     fp0 = join(input_folder, f"pf_{yearnumber}{sep}{name}.nc")
@@ -27,25 +27,25 @@ def get_fps(name, yearnumber):
 
 
 # other scripts use exactly this sequence, do not change it unless you change it also in the scripts
-def data_path(yearnumber, a):
-    """Get filepaths to load data from"""
+def get_datapath(yearnumber, a, input_folder, interdata_folder):
+    """Get filepaths for data loading and saving"""
 
-    sp_data, sp_eoy_data = get_fps("sp", yearnumber)
-    tcw_data, tcw_eoy_data = get_fps("tcw", yearnumber)
+    sp_data, sp_eoy_data = get_fps("sp", yearnumber, input_folder)
+    tcw_data, tcw_eoy_data = get_fps("tcw", yearnumber, input_folder)
 
-    ewvf_data, ewvf_eoy_data = get_fps("vert-int", yearnumber)
-    nwvf_data, nwvf_eoy_data = get_fps("vert-int", yearnumber)
-    eclwf_data, eclwf_eoy_data = get_fps("vert-int", yearnumber)
-    nclwf_data, nclwf_eoy_data = get_fps("vert-int", yearnumber)
-    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", yearnumber)
-    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", yearnumber)
+    ewvf_data, ewvf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    nwvf_data, nwvf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    eclwf_data, eclwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    nclwf_data, nclwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
 
-    u_f_data, u_f_eoy_data = get_fps("uvq", yearnumber)
-    v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber)
-    q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber)
+    u_f_data, u_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
+    v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
+    q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
 
-    evaporation_data = get_fps("e-p", yearnumber)[0]
-    precipitation_data = get_fps("e-p", yearnumber)[0]
+    evaporation_data = get_fps("e-p", yearnumber, input_folder)[0]
+    precipitation_data = get_fps("e-p", yearnumber, input_folder)[0]
 
     save_path = join(
         interdata_folder, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
@@ -878,25 +878,32 @@ if __name__ == "__main__":
     L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Get days of year
-    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year) 
+    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year)
 
     #### Loop through days
     for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
         start = timer()
-        datapath = data_path(year, a)  # global variable
-        
-        # below: the coefficient of a must be multiple of daily sampling frequency 
+
+        # define save path
+        datapath = get_datapath(
+            year,
+            a,
+            input_folder=args.input_folder,
+            interdata_folder=args.interdata_folder,
+        )  # global variable
+
+        # below: the coefficient of a must be multiple of daily sampling frequency
         # (e.g. 8/day for 3-hourly data)
         begin_time = a * args.count_time
 
-        # If at the last day of data, can't fetch next day's data 
+        # If at the last day of data, can't fetch next day's data
         # (need to reduce number of timesteps by 1)
-        is_last_doy = (doy_idx==doy_indices[-1])
+        is_last_doy = doy_idx == doy_indices[-1]
         if is_last_doy:
-            count_time_ = args,count_time-1
+            count_time_ = args, count_time - 1
         else:
             count_time = args.count_time
-        
+
         # 1 Interpolate U,V,Q data to match surface pressure
         UVQ_RAW = getUVQ(
             latitude, longitude, final_time, doy_idx, begin_time, count_time_
