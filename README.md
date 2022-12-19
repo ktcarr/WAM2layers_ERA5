@@ -1,21 +1,22 @@
 # Moisture tracking for ERA5
 
 ## File structure  
-|-- scripts
+```
+|-- scripts  
      -- backtrack_parallel.sh  
      -- backtrack.sh  
-     -- get_fluxes_parallel.sh  
-     -- get_fluxes.sh
-    |-- move_to_scratch
-         -- move_to_scratch.sh
-         -- move_to_scratch_parallel.sh 
-|-- src 
-     -- __init__.py
+     -- get_fluxes_parallel.sh   
+     -- get_fluxes.sh  
+    |-- move_to_scratch  
+         -- move_to_scratch.sh  
+         -- move_to_scratch_parallel.sh  
+|-- src  
+     -- __init__.py  
      -- backtrack.py  
      -- getconstants.py  
      -- get_fluxes.py  
      -- params.py  
-     -- postprocess.py 
+     -- postprocess.py  
 |-- tests  
  -- .gitignore  
  -- environment.yml  
