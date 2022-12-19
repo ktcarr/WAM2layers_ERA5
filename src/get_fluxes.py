@@ -18,8 +18,6 @@ import calendar
 from getconstants import getconstants
 from timeit import default_timer as timer
 from os.path import join
-import argparse
-import importlib.util
 
 eps = np.finfo(float).eps # small number to avoid divide-by-zero
 
@@ -521,97 +519,109 @@ def getFa_Vert(Fa_E_top,Fa_E_down,Fa_N_top,Fa_N_down,E,P,W_top,W_down,divt,count
 #%% Runtime & Results
 
 if __name__=='__main__':
+    import argparse
+    from getconstants import getconstants
+
     start1 = timer()
 
     #### Read parameters ##### 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--params_fp',   dest='params_path')
-    parser.add_argument('--year1',       dest='year1', type=int)
-    parser.add_argument('--year2',       dest='year2', type=int)
-    # parser.add_argument('--divt',        dest='divt', type=int)
-    args = parser.parse_args()
     
-    params_path = args.params_path
-    years       = np.arange(args.year1, args.year2+1)
-    # divt        = args.divt
-    
-    ###  Import parameters used for flux computations  ##############
-    spec = importlib.util.spec_from_file_location("module.name", params_path)
-    params = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(params)
-    
-    ######### Parameters (shared for all experiments) ###################
-    latitude  = params.latitude
-    longitude = params.longitude
-    lsm_path = params.lsm_path
-    lake_mask = np.nan # dummy argument for compatibility with other stuff...
-    isglobal = params.isglobal
-    count_time = params.count_time
-    divt = params.divt
-    boundary = params.boundary
-    input_folder = params.input_folder
-    interdata_folder = params.interdata_folder
+    ## Specify year and days of year for tracking
+    parser.add_argument('--year',        dest='year', type=int)
+    parser.add_argument('--doy_start',   dest="doy_start", type=int, default="none")
+    parser.add_argument('--doy_end',     dest="doy_end", type=int,   default="none")
 
+    ## Specify lon/lat grid for tracking
+    parser.add_argument('--lon_min', dest="lon_min", type=float, default=0.)
+    parser.add_argument('--lon_max', dest="lon_max", type=float, default=359.)
+    parser.add_argument('--lat_min', dest="lat_min", type=float, default=-90.)
+    parser.add_argument('--lat_max', dest="lat_max", type=float, default=90.)
+    parser.add_argument('--dlat',    dest="dlat", type=float, default=1.)
+    parser.add_argument('--dlon',    dest="dlon", type=float, default=1.)
     
-    # obtain the constants
-    lsm,g,density_water,timestep,A_gridcell,L_N_gridcell,L_S_gridcell,L_EW_gridcell,gridcell = getconstants(latitude,longitude,lake_mask,lsm_path)
+    ## Numerical parameters
+    parser.add_argument('--timestep',  dest='timestep', type=float, default=10800.)
+    parser.add_argument('--divt',      dest='divt', type=int, default=45)
+    parser.add_argument('--boundary',  dest='boundary', type=int, default=29)
+    parser.add_argument('--count_time',dest='count_time', type=int, default=8)
+    parser.add_argument('--is_global', dest='is_global', type=int, default=1)
+
+    ## Data folders
+    parser.add_argument('--input_folder',     dest='input_folder', type=str)
+    parser.add_argument('--interdata_folder', dest='interdata_folder', type=str)
+
+    args = parser.parse_args() 
     
-    # loop through the years
-    for yearnumber in years:
-     
-        yearpart = np.arange(91) # use for AMJ data
-        # ### Get day of year (not as much data available for 2021) ###
-        # if yearnumber == 2021:
-        #     yearpart   = np.arange(90)
-        # else:
-        #     yearpart = np.arange(366)
-        #     # yearpart   = np.arange(183,214) # July, roughly. Only use for short experiment
-                                
-        ly = int(calendar.isleap(yearnumber)) # is this a leap year?
-        final_time = 364+ly
+    # Get lon/lat, and gridcell dimensions
+    constants = get_constants(
+                            lon_min = args.lon_min,
+                            lon_max = args.lon_max,
+                            dlon    = args.dlon,
+                            lat_min = args.lat_min,
+                            lat_max = args.lat_max,
+                            dlat    = args.dlat
+                )
+
+    # Parse constants
+    g             = constants['g']
+    density_water = constants['density_water']
+    longitude     = constants['longitude']
+    latitude      = constants['latitude']
+    A_gridcell    = constants['A_gridcell']
+    L_N_gridcell  = constants['L_N_gridcell']
+    L_S_gridcell  = constants['L_S_gridcell']
+    L_EW_gridcell = constants['L_EW_gridcell']
+   
+    ## get indices for day of year
+    doy         = np.arange(args.doy_start, args.doy_end+1)
+    doy_indices = doy - 1 # indices start with 0
+
+    ly = int(calendar.isleap(year)) # is this a leap year?
+    final_time = 364+ly
     
-        #### Loop through days
-        for a in yearpart:  # a > 365 (366th index) and not a leapyear        
-            start = timer()
-            datapath = data_path(yearnumber,a) # global variable
-            if a > final_time:
-                pass
-            else:
-                # below: the coefficient of a must be multiple of daily sampling frequency (e.g. 8/day for 3-hourly data)
-                begin_time = a*count_time 
-                
-                # If at the last day of data, can't fetch next day's data (need to reduce number of timesteps by 1)
-                # count_time_ = count_time-1 if ((yearnumber==2021) & (a==89)) else count_time
-                count_time_ = count_time-1 if (a==yearpart[-1]) else count_time
-                
-                #1 Interpolate U,V,Q data to match surface pressure
-                UVQ_RAW          = getUVQ(latitude, longitude, final_time,a,begin_time,count_time_)
-                Pres, DP, LEVELS = getPres(latitude, longitude, final_time,a,begin_time,count_time_, top_level=100, n_levels=37)
-                U, V, Q          = interp_uvq(count_time_)
+    #### Loop through days
+    for a in yearpart:  # a > 365 (366th index) and not a leapyear        
+        start = timer()
+        datapath = data_path(year,a) # global variable
+        if a > final_time:
+            pass
+        else:
+            # below: the coefficient of a must be multiple of daily sampling frequency (e.g. 8/day for 3-hourly data)
+            begin_time = a*count_time 
+            
+            # If at the last day of data, can't fetch next day's data (need to reduce number of timesteps by 1)
+            # count_time_ = count_time-1 if ((yearnumber==2021) & (a==89)) else count_time
+            count_time_ = count_time-1 if (a==yearpart[-1]) else count_time
+            
+            #1 Interpolate U,V,Q data to match surface pressure
+            UVQ_RAW          = getUVQ(latitude, longitude, final_time,a,begin_time,count_time_)
+            Pres, DP, LEVELS = getPres(latitude, longitude, final_time,a,begin_time,count_time_, top_level=100, n_levels=37)
+            U, V, Q          = interp_uvq(count_time_)
     
-                #2 integrate specific humidity to get the (total) column water (vapor)
-                cw,W_top,W_down = getW(Q,DP,latitude,longitude,final_time,a,begin_time,count_time_,density_water,g,A_gridcell,boundary)
+            #2 integrate specific humidity to get the (total) column water (vapor)
+            cw,W_top,W_down = getW(Q,DP,latitude,longitude,final_time,a,begin_time,count_time_,density_water,g,A_gridcell,boundary)
     
-                #3 calculate horizontal moisture fluxes
-                Fa_E_top,Fa_N_top,Fa_E_down,Fa_N_down = getFa(latitude,longitude,boundary,cw,U,V,count_time_,begin_time,yearnumber,a,final_time)
+            #3 calculate horizontal moisture fluxes
+            Fa_E_top,Fa_N_top,Fa_E_down,Fa_N_down = getFa(latitude,longitude,boundary,cw,U,V,count_time_,begin_time,year,a,final_time)
     
-                #4 evaporation and precipitation
-                E,P = getEP(latitude,longitude,yearnumber,begin_time,count_time_,A_gridcell)
+            #4 evaporation and precipitation
+            E,P = getEP(latitude,longitude,year,begin_time,count_time_,A_gridcell)
     
-                #5 put data on a smaller time step
-                Fa_E_top_1,Fa_N_top_1,Fa_E_down_1,Fa_N_down_1,E,P,W_top,W_down = getrefined(Fa_E_top,Fa_N_top,Fa_E_down,Fa_N_down,W_top,W_down,E,P,divt,count_time_,latitude,longitude)
+            #5 put data on a smaller time step
+            Fa_E_top_1,Fa_N_top_1,Fa_E_down_1,Fa_N_down_1,E,P,W_top,W_down = getrefined(Fa_E_top,Fa_N_top,Fa_E_down,Fa_N_down,W_top,W_down,E,P,divt,count_time_,latitude,longitude)
     
-                #6 stabilize horizontal fluxes and get everything in (m3 per smaller timestep)
-                Fa_E_top,Fa_E_down,Fa_N_top,Fa_N_down = get_stablefluxes(W_top,W_down,Fa_E_top_1,Fa_E_down_1,Fa_N_top_1,Fa_N_down_1,
-                                       timestep,divt,L_EW_gridcell,density_water,L_N_gridcell,L_S_gridcell,latitude,count_time_)
+            #6 stabilize horizontal fluxes and get everything in (m3 per smaller timestep)
+            Fa_E_top,Fa_E_down,Fa_N_top,Fa_N_down = get_stablefluxes(W_top,W_down,Fa_E_top_1,Fa_E_down_1,Fa_N_top_1,Fa_N_down_1,
+                                   timestep,divt,L_EW_gridcell,density_water,L_N_gridcell,L_S_gridcell,latitude,count_time_)
     
-                #7 determine the vertical moisture flux
-                Fa_Vert_raw,Fa_Vert = getFa_Vert(Fa_E_top,Fa_E_down,Fa_N_top,Fa_N_down,E,P,W_top,W_down,divt,count_time_,latitude,longitude)
+            #7 determine the vertical moisture flux
+            Fa_Vert_raw,Fa_Vert = getFa_Vert(Fa_E_top,Fa_E_down,Fa_N_top,Fa_N_down,E,P,W_top,W_down,divt,count_time_,latitude,longitude)
     
-                sio.savemat(datapath[24], {'Fa_E_top':Fa_E_top, 'Fa_N_top':Fa_N_top, 'Fa_E_down':Fa_E_down,'Fa_N_down':Fa_N_down, 'Fa_Vert':Fa_Vert, 'E':E, 'P':P, 
-                                                                                        'W_top':W_top, 'W_down':W_down}, do_compression=True)
+            sio.savemat(datapath[24], {'Fa_E_top':Fa_E_top, 'Fa_N_top':Fa_N_top, 'Fa_E_down':Fa_E_down,'Fa_N_down':Fa_N_down, 'Fa_Vert':Fa_Vert, 'E':E, 'P':P, 
+                                                                                    'W_top':W_top, 'W_down':W_down}, do_compression=True)
     
-            end = timer()
-            print('Runtime fluxes_and_storages for day ' + str(a+1) + ' in year ' + str(yearnumber) + ' is',(end - start),' seconds.')
+        end = timer()
+        print('Runtime fluxes_and_storages for day ' + str(a+1) + ' in year ' + str(year) + ' is',(end - start),' seconds.')
     end1 = timer()
     print('The total runtime is',(end1-start1),' seconds.')
