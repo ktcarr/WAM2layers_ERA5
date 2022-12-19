@@ -5,7 +5,6 @@ import scipy.io as sio
 from scipy.interpolate import interp1d
 from multiprocessing import Pool
 import numpy.ma as ma
-from getconstants import getconstants
 from timeit import default_timer as timer
 from os.path import join
 
@@ -17,14 +16,12 @@ def fix_lon(lon):
     lon[lon < 0] = lon[lon < 0] + 360
     return lon
 
-
 def get_fps(name, yearnumber, input_folder):
     """Get filepaths for given variable ('name') and year"""
     sep = "-"  # if name=='uvq' else '_'
-    fp0 = join(input_folder, f"pf_{yearnumber}{sep}{name}.nc")
-    fp1 = join(input_folder, f"pf_{yearnumber+1}{sep}{name}.nc")
+    fp0 = join(input_folder, f"{yearnumber}{sep}{name}.nc")
+    fp1 = join(input_folder, f"{yearnumber+1}{sep}{name}.nc")
     return fp0, fp1
-
 
 # other scripts use exactly this sequence, do not change it unless you change it also in the scripts
 def get_datapath(yearnumber, a, input_folder, interdata_folder):
@@ -107,9 +104,8 @@ def load_data(
     return data
 
 
-def getUVQ(latitude, longitude, final_time, a, begin_time, count_time):
+def getUVQ(latitude, longitude, is_final_time, a, begin_time, count_time):
     """Load u,v,q data to memory"""
-    is_final_time = a == final_time
     args = (latitude, longitude, begin_time, count_time, is_final_time)
     load = lambda varname, fp, fp_next: load_data(varname, fp, fp_next, *args)
 
@@ -123,7 +119,7 @@ def getUVQ(latitude, longitude, final_time, a, begin_time, count_time):
 def getPres(
     latitude,
     longitude,
-    final_time,
+    is_final_time,
     a,
     begin_time,
     count_time,
@@ -132,7 +128,6 @@ def getPres(
 ):
     """Get pressure levels, after adjusting for surface pressure. Also get pressure difference between levels"""
     # Get surface pressure
-    is_final_time = a == final_time
     args = (
         "sp",
         datapath[0],
@@ -195,7 +190,7 @@ def getW(
     dp,
     latitude,
     longitude,
-    final_time,
+    is_final_time,
     a,
     begin_time,
     count_time,
@@ -205,7 +200,6 @@ def getW(
     boundary,
 ):
     """Load W data"""
-    is_final_time = a == final_time
     args = (
         "tcw",
         datapath[4],
@@ -264,10 +258,9 @@ def getFa(
     begin_time,
     yearnumber,
     a,
-    final_time,
+    is_final_time,
 ):
-    """Get vertically integrated variables"""
-    is_final_time = a == final_time
+    """Get vertically integrated variables""" 
     args = (latitude, longitude, begin_time, count_time, is_final_time)
     load = lambda varname, fp, fp_next: load_data(varname, fp, fp_next, *args)
 
@@ -824,7 +817,7 @@ def getFa_Vert(
 
 if __name__ == "__main__":
     import argparse
-    from getconstants import getconstants
+    from utils import get_constants, get_doy_indices
 
     start1 = timer()
 
@@ -855,7 +848,7 @@ if __name__ == "__main__":
     parser.add_argument("--input_folder", dest="input_folder", type=str)
     parser.add_argument("--interdata_folder", dest="interdata_folder", type=str)
 
-    args = parser.parse_args()
+    args = parser.parse_args() 
 
     # Get lon/lat, and gridcell dimensions
     constants = get_constants(
@@ -883,35 +876,35 @@ if __name__ == "__main__":
     #### Loop through days
     for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
         start = timer()
-
+         
         # define save path
         datapath = get_datapath(
-            year,
-            a,
+            args.year,
+            doy_idx,
             input_folder=args.input_folder,
             interdata_folder=args.interdata_folder,
         )  # global variable
 
         # below: the coefficient of a must be multiple of daily sampling frequency
         # (e.g. 8/day for 3-hourly data)
-        begin_time = a * args.count_time
+        begin_time = doy_idx * args.count_time
 
         # If at the last day of data, can't fetch next day's data
         # (need to reduce number of timesteps by 1)
-        is_last_doy = doy_idx == doy_indices[-1]
-        if is_last_doy:
+        is_final_time = doy_idx == doy_indices[-1]
+        if is_final_time:
             count_time_ = args, count_time - 1
         else:
-            count_time = args.count_time
+            count_time_ = args.count_time
 
         # 1 Interpolate U,V,Q data to match surface pressure
         UVQ_RAW = getUVQ(
-            latitude, longitude, final_time, doy_idx, begin_time, count_time_
+            latitude, longitude, is_final_time, doy_idx, begin_time, count_time_
         )
         Pres, DP, LEVELS = getPres(
             latitude,
             longitude,
-            final_time,
+            is_final_time,
             doy_idx,
             begin_time,
             count_time_,
@@ -926,33 +919,33 @@ if __name__ == "__main__":
             DP,
             latitude,
             longitude,
-            final_time,
+            is_final_time,
             doy_idx,
             begin_time,
             count_time_,
             density_water,
             g,
             A_gridcell,
-            boundary,
+            args.boundary,
         )
 
         # 3 calculate horizontal moisture fluxes
         Fa_E_top, Fa_N_top, Fa_E_down, Fa_N_down = getFa(
             latitude,
             longitude,
-            boundary,
+            args.boundary,
             cw,
             U,
             V,
             count_time_,
             begin_time,
-            year,
+            args.year,
             doy_idx,
-            final_time,
+            is_final_time,
         )
 
         # 4 evaporation and precipitation
-        E, P = getEP(latitude, longitude, year, begin_time, count_time_, A_gridcell)
+        args.E, P = getEP(latitude, longitude, args.year, begin_time, count_time_, A_gridcell)
 
         # 5 put data on a smaller time step
         (
@@ -1034,7 +1027,7 @@ if __name__ == "__main__":
             "Runtime fluxes_and_storages for day "
             + str(doy_idx + 1)
             + " in year "
-            + str(year)
+            + str(args.year)
             + " is",
             (end - start),
             " seconds.",

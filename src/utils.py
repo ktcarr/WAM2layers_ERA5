@@ -58,7 +58,7 @@ def get_gridcell_dims(latitude, dlon, dlat):
     return A_gridcell, L_N_gridcell, L_S_gridcell, L_EW_gridcell
 
 
-def getconstants(lon_min, lon_max, dlon, lat_min, lat_max, dlat):
+def get_constants(lon_min, lon_max, dlon, lat_min, lat_max, dlat):
     """Wrapper function to get constants based on specified inputs.
     Returns dictionary with constants"""
     latitude = get_latitude(lat_min, lat_max, dlat)
