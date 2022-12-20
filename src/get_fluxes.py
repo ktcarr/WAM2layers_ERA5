@@ -1,13 +1,9 @@
 import numpy as np
 import xarray as xr
-import pandas as pd
-import scipy.io as sio
 from scipy.interpolate import interp1d
 from multiprocessing import Pool
 import numpy.ma as ma
-from timeit import default_timer as timer
 from os.path import join
-from copy import deepcopy
 
 eps = np.finfo(float).eps  # small number to avoid divide-by-zero
 
@@ -17,23 +13,24 @@ def remove_negative_longitudes(lon):
     lon[lon < 0] = lon[lon < 0] + 360
     return lon
 
+
 def fix_lonlat(data):
-    """Fix longitude/latitude coordinates on xr.dataarray/xr.dataset""" 
-    
+    """Fix longitude/latitude coordinates on xr.dataarray/xr.dataset"""
+
     # make sure name is "longitude" and "latitude", not "lon"/"lat"
     if "lon" in data.coords:
-        data = data.rename({"lon":"longitude",
-                            "lat":"latitude"})
+        data = data.rename({"lon": "longitude", "lat": "latitude"})
 
     # make sure longitude values are in [0,360) and not [-180,180]
     data["longitude"] = remove_negative_longitudes(data["longitude"].values)
 
     return data
 
+
 def safe_open(fp):
     """wrapper-function for xr.open_dataset which standardizes lon/lat
-       coordinates using fix_lonlat"""
-    return fix_lonlat(xr.open_dataset(fp)) 
+    coordinates using fix_lonlat"""
+    return fix_lonlat(xr.open_dataset(fp))
 
 
 def get_fps(name, yearnumber, input_fp):
@@ -42,6 +39,7 @@ def get_fps(name, yearnumber, input_fp):
     fp0 = join(input_fp, f"{yearnumber}{sep}{name}.nc")
     fp1 = join(input_fp, f"{yearnumber+1}{sep}{name}.nc")
     return fp0, fp1
+
 
 # other scripts use exactly this sequence, do not change it unless you change it also in the scripts
 def get_datapath(yearnumber, a, input_fp, fluxes_fp):
@@ -64,9 +62,7 @@ def get_datapath(yearnumber, a, input_fp, fluxes_fp):
     evaporation_data = get_fps("evaporation", yearnumber, input_fp)[0]
     precipitation_data = get_fps("total_precipitation", yearnumber, input_fp)[0]
 
-    save_path = join(
-        fluxes_fp, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
-    )
+    save_path = join(fluxes_fp, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat")
 
     return (
         sp_data,
@@ -109,7 +105,7 @@ def load_data(
 ):
     """Load specified data based, including handling end-of-year stuff"""
     data = safe_open(fp)[varname]
-        
+
     ## Select specified lon/lat values
     data = data.sel(latitude=latitude, longitude=longitude)
     data = data.isel(time=slice(begin_time, begin_time + count_time + 1))
@@ -278,7 +274,7 @@ def getFa(
     a,
     is_final_time,
 ):
-    """Get vertically integrated variables""" 
+    """Get vertically integrated variables"""
     args = (latitude, longitude, begin_time, count_time, is_final_time)
     load = lambda varname, fp, fp_next: load_data(varname, fp, fp_next, *args)
 
@@ -665,7 +661,7 @@ def getFa_Vert(
     count_time,
     latitude,
     longitude,
-    is_global
+    is_global,
 ):
 
     # total moisture in the column
@@ -835,8 +831,11 @@ def getFa_Vert(
 #%% Runtime & Results
 
 if __name__ == "__main__":
+
     import argparse
-    from utils import get_constants_from_args, get_doy_indices
+    import utils
+    from timeit import default_timer as timer
+    import scipy.io as sio
 
     start1 = timer()
 
@@ -867,10 +866,10 @@ if __name__ == "__main__":
     parser.add_argument("--input_fp", dest="input_fp", type=str)
     parser.add_argument("--fluxes_fp", dest="fluxes_fp", type=str)
 
-    args = parser.parse_args() 
+    args = parser.parse_args()
 
     # Get lon/lat, and gridcell dimensions
-    constants = get_constants_from_args(args)
+    constants = utils.get_constants_from_args(args)
 
     # Parse constants
     g = constants["g"]
@@ -883,12 +882,12 @@ if __name__ == "__main__":
     L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Get days of year
-    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year)
+    doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
 
     #### Loop through days
     for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
         start = timer()
-         
+
         # define save path
         datapath = get_datapath(
             args.year,
@@ -903,9 +902,8 @@ if __name__ == "__main__":
 
         # If at the last day of data, can't fetch next day's data
         # (need to reduce number of timesteps by 1)
-        is_final_time = doy_idx == doy_indices[-1]
-        if is_final_time:
-            count_time_ = args, count_time - 1
+        if is_last_doy_idx(year, doy_idx):
+            count_time_ = args.count_time - 1
         else:
             count_time_ = args.count_time
 
@@ -957,7 +955,9 @@ if __name__ == "__main__":
         )
 
         # 4 evaporation and precipitation
-        E, P = getEP(latitude, longitude, args.year, begin_time, count_time_, A_gridcell)
+        E, P = getEP(
+            latitude, longitude, args.year, begin_time, count_time_, A_gridcell
+        )
 
         # 5 put data on a smaller time step
         (
@@ -1016,7 +1016,7 @@ if __name__ == "__main__":
             count_time_,
             latitude,
             longitude,
-            args.is_global
+            args.is_global,
         )
 
         sio.savemat(

@@ -3,17 +3,14 @@
 
 import numpy as np
 import scipy.io as sio
-import calendar
-from timeit import default_timer as timer
 import os
-from matplotlib.path import Path
-import pickle
+
 
 def create_empty_array(count_time, divt, latitude, longitude, year, doy_idx):
     """Create empty array using specified year and doy (dummy array for backtracking)."""
-    
+
     ## dimensions for empty array
-    dims = (int(count_time * divt) + 1, len(latitude), len(longitude)) 
+    dims = (int(count_time * divt) + 1, len(latitude), len(longitude))
     Sa_track_top = np.zeros(dims)
     Sa_track_down = np.zeros(dims)
 
@@ -29,6 +26,7 @@ def create_empty_array(count_time, divt, latitude, longitude, year, doy_idx):
         do_compression=True,
     )
     return
+
 
 def data_path(previous_data_to_load, year, a):
     load_Sa_track = os.path.join(
@@ -75,7 +73,7 @@ def get_Sa_track_backward(
     W_down,
     Sa_track_top_last,
     Sa_track_down_last,
-    is_global
+    is_global,
 ):
 
     # make P_region matrix
@@ -466,27 +464,31 @@ def get_Sa_track_backward(
         water_lost,
     )
 
-    ##### EXPLANATION OF WATER LOST ####
-    ## # down and top: water lost to the system:
-    ## # Can't have more tracked moisture than total moisture
-    ## water_lost_down[t-1,:,:] = np.maximum(0, Sa_track - W_down)
-    ##
-    ## # Stabilize: if more tracked moisture than total moisture, set tracked moisture to total moisture
-    ## # otherwise, take tracked moisture
-    ## Sa_track_down[t-1,1:-1,:] = np.maximum(0, np.minimum(W_down, Sa_track))
+    #### EXPLANATION OF WATER LOST ####
+    # # down and top: water lost to the system:
+    # # Can't have more tracked moisture than total moisture
+    # water_lost_down[t-1,:,:] = np.maximum(0, Sa_track - W_down)
+
+    # # Stabilize: if more tracked moisture than total moisture,
+    # # set tracked moisture to total moisture
+    # # otherwise, take tracked moisture
+    # Sa_track_down[t-1,1:-1,:] = np.maximum(0, np.minimum(W_down, Sa_track))
+
 
 if __name__ == "__main__":
 
     import argparse
-    from utils import get_constants, get_doy_indices
+    import utils
+    from timeit import default_timer as timer
+    from matplotlib.path import Path
 
     start1 = timer()
 
     #### Read parameters #####
     parser = argparse.ArgumentParser()
- 
+
     parser.add_argument("--region_fp", dest="region_fp")
-    parser.add_argument("--list_of_days_fp", dest="list_of_days_fp") 
+    parser.add_argument("--list_of_days_fp", dest="list_of_days_fp")
 
     ## Specify year and days of year for tracking
     parser.add_argument("--year", dest="year", type=int)
@@ -503,19 +505,19 @@ if __name__ == "__main__":
 
     ## Numerical parameters
     parser.add_argument("--timestep", dest="timestep", type=float, default=10800.0)
-    parser.add_argument("--Kvf", dest="Kvf", default=3.0, type=float) 
-    parser.add_argument("--count_time", dest="count_time", type=int, default=8) 
+    parser.add_argument("--Kvf", dest="Kvf", default=3.0, type=float)
+    parser.add_argument("--count_time", dest="count_time", type=int, default=8)
     parser.add_argument("--is_global", dest="is_global", type=int, default=1)
 
     ## Data folders
     parser.add_argument("--fluxes_fp", dest="fluxes_fp", type=str)
     parser.add_argument("--tracked_moisture_fp", dest="tracked_moisture_fp", type=str)
     parser.add_argument("--output_fp", dest="output_fp", type=str)
-        
-    args = parser.parse_args() 
+
+    args = parser.parse_args()
 
     # Get lon/lat, and gridcell dimensions
-    constants = get_constants_from_args(args)
+    constants = utils.get_constants_from_args(args)
 
     # Parse constants
     g = constants["g"]
@@ -525,64 +527,50 @@ if __name__ == "__main__":
     A_gridcell = constants["A_gridcell"]
     L_N_gridcell = constants["L_N_gridcell"]
     L_S_gridcell = constants["L_S_gridcell"]
-    L_EW_gridcell = constants["L_EW_gridcell"] 
+    L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Check if interdata folder exists:
     assert os.path.isdir(
         fluxes_fp
-    ), "Please create the interdata_folder before running the script"   
+    ), "Please create the interdata_folder before running the script"
 
     ########### Load list of days to track moisture for, if path is specified ##################
     if list_of_days_fp is None:
         extreme_days = None
     else:
-        with open(list_of_days_fp, "rb") as f:
-            extreme_days = pickle.load(f)
-
-            # if in array format, convert to list of tuples
-            if type(extreme_days) is np.ndarray:
-                extreme_days = list(zip(extreme_days[:, 0], extreme_days[:, 1]))
+        extreme_days = utils.load_doy_list(list_of_days_fp)
 
     # Create mask for region (load vertices of path from specified file)
     region_path = Path(np.load(region_fp))
     Region = lsm * makeMask(region_path, latitude, longitude)
 
     #%% Runtime & Results
-    start1 = timer() 
-
-    # ## Get indices of valid days
-    # if year==2021:
-    #     last_day = 90
-    # elif calendar.isleap(year):
-    #     last_day = 366
-    # else:
-    #     last_day = 365
-    #
-    # thisyearpart = np.arange(last_day)[::-1]
-    thisyearpart = np.arange(91)[::-1]
-    # doy_start = 90 if year==2021 else 0
-    doy_start = 91
-    year_start = year
+    start1 = timer()
 
     # Get days of year
-    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year)
-    doy_indices = doy_indices[::-1] # put in descending order
-    
+    doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
+    doy_indices = doy_indices[::-1]  # put in descending order
+
     # Create 'dummy' array for first backtracking step
-    last_doy_idx = doy_indices[0] 
+    last_doy_idx = doy_indices[0]
     create_empty_array(
         args.count_time - 1, args.divt, latitude, longitude, args.year, last_doy_idx
     )
 
     for doy_idx in doy_indices:
-        # last day has one fewer timestep (no data for April 1 2021)
-        count_time_ = count_time - 1 if (a == thisyearpart[0]) else count_time
+
+        # last day has one fewer timestep
+        if doy_idx == doy_indices[0]:
+            count_time_ = args.count_time - 1
+        else:
+            count_time_ = args.count_time
 
         start = timer()
 
-        if a == (364 + calendar.isleap(year)):  # a == 31 December
+        ## Get filename for data loading
+        if utils.is_last_doy_idx(year, doy_idx):
             previous_data_to_load = str(year + 1) + "-0"
-        else:  # a != 31 December
+        else:
             previous_data_to_load = str(year) + "-" + str(a + 1)
         datapath = data_path(previous_data_to_load, year, a)
 
@@ -611,7 +599,7 @@ if __name__ == "__main__":
 
         # Check for extremes: if criterion not satisfied, zero out the precip
         if extreme_days is not None:
-            if (year, a) not in extreme_days:
+            if (year, doy_idx) not in extreme_days:
                 P = np.zeros_like(P)
 
         # call the backward tracking function
@@ -641,7 +629,7 @@ if __name__ == "__main__":
             W_down,
             Sa_track_top_last,
             Sa_track_down_last,
-            args.is_global
+            args.is_global,
         )
         # save this data
         sio.savemat(
@@ -657,14 +645,10 @@ if __name__ == "__main__":
             },
             do_compression=True,
         )
-        
+
         end = timer()
         print(
-            "Runtime Sa_track for day "
-            + str(a + 1)
-            + " in year "
-            + str(year)
-            + " is",
+            "Runtime Sa_track for day " + str(a + 1) + " in year " + str(year) + " is",
             (end - start),
             " seconds.",
         )

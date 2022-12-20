@@ -1,12 +1,30 @@
 import numpy as np
 import xarray as xr
 import calendar
+import pickle
+
+def load_doy_list(fp):
+    """load list of doy indices for moisture tracking"""
+    
+    with open(fp, "rb") as f:
+        doy_indices = pickle.load(f)
+    
+        # if in array format, convert to list of tuples
+        if type(doy_indices) is np.ndarray:
+            doy_indices = list(zip(doy_indices[:, 0], doy_indices[:, 1]))
+    
+    return doy_indices
+
+
+def is_last_doy_idx(year, doy_idx):
+    """check if doy_idx is the last for the given year"""
+   return doy_idx == 364 + calendar.isleap(year) 
+
 
 def get_next_doy_idx(year, doy_idx):
-    """get next year, day of year"""
-    last_doy_idx = 364 + calendar.isleap(year)
+    """get next year, day of year index""" 
 
-    if doy_idx == last_doy_idx:
+    if is_last_doy_idx(year, doy_idx):
         next_year    = year+1
         next_doy_idx = 1
     else:
@@ -14,6 +32,7 @@ def get_next_doy_idx(year, doy_idx):
         next_doy_idx = doy_idx+1
 
     return next_year, next_doy_idx  
+
 
 def makeMask(path, lat, lon):
     #     Function returns a mask with with 1s representing the area inside of path
