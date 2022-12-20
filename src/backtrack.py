@@ -2,26 +2,26 @@
    This script takes two arguments: the path to the flux and tracking parameter files"""
 
 import numpy as np
-import argparse
 import scipy.io as sio
 import calendar
-from getconstants import getconstants
 from timeit import default_timer as timer
 import os
 from matplotlib.path import Path
 import pickle
-import importlib.util
 
-def create_empty_array(count_time, divt, latitude, longitude, year, doy):
+def create_empty_array(count_time, divt, latitude, longitude, year, doy_idx):
     """Create empty array using specified year and doy (dummy array for backtracking)."""
-    Sa_time_top = np.zeros((int(count_time * divt) + 1, len(latitude), len(longitude)))
-    Sa_time_down = np.zeros((int(count_time * divt) + 1, len(latitude), len(longitude)))
-    Sa_track_top = np.zeros((int(count_time * divt) + 1, len(latitude), len(longitude)))
-    Sa_track_down = np.zeros(
-        (int(count_time * divt) + 1, len(latitude), len(longitude))
-    )
+    
+    ## dimensions for empty array
+    dims = (int(count_time * divt) + 1, len(latitude), len(longitude)) 
+    Sa_track_top = np.zeros(dims)
+    Sa_track_down = np.zeros(dims)
+
+    ## Get next doy
+    next_year, next_doy_idx = utils.get_next_doy(year, doy_idx)
+    fname = f"{next_year}-{next_doy_idx}Sa_track.mat"
     sio.savemat(
-        os.path.join(tracked_moisture_fp, f"{year}-{doy}Sa_track.mat"),
+        os.path.join(tracked_moisture_fp, fname),
         {
             "Sa_track_top": Sa_track_top,
             "Sa_track_down": Sa_track_down,
@@ -30,32 +30,22 @@ def create_empty_array(count_time, divt, latitude, longitude, year, doy):
     )
     return
 
-def makeMask(path, lat, lon):
-    #     Function returns a mask with with 1s representing the area inside of path
-    lon_lat_grid = np.meshgrid(lon, lat)
-    t = zip(
-        lon_lat_grid[0].flatten(), lon_lat_grid[1].flatten()
-    )  # get pairs of lat/lon
-    t = np.array(list(t))  # convert to array
-    mask = path.contains_points(t).reshape(len(lat), len(lon))  # create mask
-    return mask
-
-def data_path(previous_data_to_load, yearnumber, a):
+def data_path(previous_data_to_load, year, a):
     load_Sa_track = os.path.join(
         tracked_moisture_fp, previous_data_to_load + "Sa_track.mat"
     )
     load_fluxes_and_storages = os.path.join(
-        fluxes_fp, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
+        fluxes_fp, str(year) + "-" + str(a) + "fluxes_storages.mat"
     )
     load_Sa_time = os.path.join(
         tracked_moisture_fp, previous_data_to_load + "Sa_time.mat"
     )
 
     save_path_track = os.path.join(
-        tracked_moisture_fp, str(yearnumber) + "-" + str(a) + "Sa_track.mat"
+        tracked_moisture_fp, str(year) + "-" + str(a) + "Sa_track.mat"
     )
     save_path_time = os.path.join(
-        tracked_moisture_fp, str(yearnumber) + "-" + str(a) + "Sa_time.mat"
+        tracked_moisture_fp, str(year) + "-" + str(a) + "Sa_time.mat"
     )
     return (
         load_Sa_track,
@@ -85,6 +75,7 @@ def get_Sa_track_backward(
     W_down,
     Sa_track_top_last,
     Sa_track_down_last,
+    is_global
 ):
 
     # make P_region matrix
@@ -117,11 +108,11 @@ def get_Sa_track_backward(
     # fluxes over the eastern boundary
     Fa_E_top_boundary = np.zeros(np.shape(Fa_E_top))
     Fa_E_top_boundary[:, :, :-1] = 0.5 * (Fa_E_top[:, :, :-1] + Fa_E_top[:, :, 1:])
-    if isglobal == 1:
+    if is_global == 1:
         Fa_E_top_boundary[:, :, -1] = 0.5 * (Fa_E_top[:, :, -1] + Fa_E_top[:, :, 0])
     Fa_E_down_boundary = np.zeros(np.shape(Fa_E_down))
     Fa_E_down_boundary[:, :, :-1] = 0.5 * (Fa_E_down[:, :, :-1] + Fa_E_down[:, :, 1:])
-    if isglobal == 1:
+    if is_global == 1:
         Fa_E_down_boundary[:, :, -1] = 0.5 * (Fa_E_down[:, :, -1] + Fa_E_down[:, :, 0])
 
     # find out where the positive and negative fluxes are
@@ -229,14 +220,14 @@ def get_Sa_track_backward(
         Sa_E_down[0, :, :-1] = W_down[
             t, :, 1:
         ]  # Atmospheric storage of the cell to the east [m3]
-        # to make dependent on isglobal but for now kept to avoid division by zero errors
+        # to make dependent on is_global but for now kept to avoid division by zero errors
         Sa_E_down[0, :, -1] = W_down[
             t, :, 0
         ]  # Atmospheric storage of the cell to the east [m3]
         Sa_W_down[0, :, 1:] = W_down[
             t, :, :-1
         ]  # Atmospheric storage of the cell to the west [m3]
-        # to make dependent on isglobal but for now kept to avoid division by zero errors
+        # to make dependent on is_global but for now kept to avoid division by zero errors
         Sa_W_down[0, :, 0] = W_down[
             t, :, -1
         ]  # Atmospheric storage of the cell to the west [m3]
@@ -251,14 +242,14 @@ def get_Sa_track_backward(
         Sa_E_top[0, :, :-1] = W_top[
             t, :, 1:
         ]  # Atmospheric storage of the cell to the east [m3]
-        # to make dependent on isglobal but for now kept to avoid division by zero errors
+        # to make dependent on is_global but for now kept to avoid division by zero errors
         Sa_E_top[0, :, -1] = W_top[
             t, :, 0
         ]  # Atmospheric storage of the cell to the east [m3]
         Sa_W_top[0, :, 1:] = W_top[
             t, :, :-1
         ]  # Atmospheric storage of the cell to the west [m3]
-        # to make dependent on isglobal but for now kept to avoid division by zero errors
+        # to make dependent on is_global but for now kept to avoid division by zero errors
         Sa_W_top[0, :, 0] = W_top[
             t, :, -1
         ]  # Atmospheric storage of the cell to the west [m3]
@@ -273,14 +264,14 @@ def get_Sa_track_backward(
         Sa_track_E_down[0, :, :-1] = Sa_track_down[
             t, :, 1:
         ]  # Atmospheric tracked storage of the cell to the east [m3]
-        if isglobal == 1:
+        if is_global == 1:
             Sa_track_E_down[0, :, -1] = Sa_track_down[
                 t, :, 0
             ]  # Atmospheric tracked storage of the cell to the east [m3]
         Sa_track_W_down[0, :, 1:] = Sa_track_down[
             t, :, :-1
         ]  # Atmospheric storage of the cell to the west [m3]
-        if isglobal == 1:
+        if is_global == 1:
             Sa_track_W_down[0, :, 0] = Sa_track_down[
                 t, :, -1
             ]  # Atmospheric storage of the cell to the west [m3]
@@ -323,14 +314,14 @@ def get_Sa_track_backward(
         Sa_track_E_top[0, :, :-1] = Sa_track_top[
             t, :, 1:
         ]  # Atmospheric tracked storage of the cell to the east [m3]
-        if isglobal == 1:
+        if is_global == 1:
             Sa_track_E_top[0, :, -1] = Sa_track_top[
                 t, :, 0
             ]  # Atmospheric tracked storage of the cell to the east [m3]
         Sa_track_W_top[0, :, 1:] = Sa_track_top[
             t, :, :-1
         ]  # Atmospheric tracked storage of the cell to the west [m3]
-        if isglobal == 1:
+        if is_global == 1:
             Sa_track_W_top[0, :, 0] = Sa_track_top[
                 t, :, -1
             ]  # Atmospheric tracked storage of the cell to the west [m3]
@@ -557,46 +548,43 @@ if __name__ == "__main__":
     Region = lsm * makeMask(region_path, latitude, longitude)
 
     #%% Runtime & Results
-    start1 = timer()
-
-    # loop through the years (start with most recent first)
-    yearnumber = years[0]  # this version of the script only takes 1 year
+    start1 = timer() 
 
     # ## Get indices of valid days
-    # if yearnumber==2021:
+    # if year==2021:
     #     last_day = 90
-    # elif calendar.isleap(yearnumber):
+    # elif calendar.isleap(year):
     #     last_day = 366
     # else:
     #     last_day = 365
     #
     # thisyearpart = np.arange(last_day)[::-1]
     thisyearpart = np.arange(91)[::-1]
-    # doy_start = 90 if yearnumber==2021 else 0
+    # doy_start = 90 if year==2021 else 0
     doy_start = 91
-    # year_start= yearnumber if (yearnumber==2021) else yearnumber+1
-    year_start = yearnumber
+    year_start = year
 
-    # # only use for short experiment
-    # thisyearpart = np.arange(183,214)[::-1]
-    # doy_start = 214
-    # year_start = 1993
-
+    # Get days of year
+    doy_indices = get_doy_indices(args.doy_start, args.doy_end, args.year)
+    doy_indices = doy_indices[::-1] # put in descending order
+    
+    # Create 'dummy' array for first backtracking step
+    last_doy_idx = doy_indices[0] 
     create_empty_array(
-        count_time - 1, divt, latitude, longitude, year_start, doy_start
-    )  # creates empty arrays for first day run
+        args.count_time - 1, args.divt, latitude, longitude, args.year, last_doy_idx
+    )
 
-    for a in thisyearpart:
+    for doy_idx in doy_indices:
         # last day has one fewer timestep (no data for April 1 2021)
         count_time_ = count_time - 1 if (a == thisyearpart[0]) else count_time
 
         start = timer()
 
-        if a == (364 + calendar.isleap(yearnumber)):  # a == 31 December
-            previous_data_to_load = str(yearnumber + 1) + "-0"
+        if a == (364 + calendar.isleap(year)):  # a == 31 December
+            previous_data_to_load = str(year + 1) + "-0"
         else:  # a != 31 December
-            previous_data_to_load = str(yearnumber) + "-" + str(a + 1)
-        datapath = data_path(previous_data_to_load, yearnumber, a)
+            previous_data_to_load = str(year) + "-" + str(a + 1)
+        datapath = data_path(previous_data_to_load, year, a)
 
         loading_ST = sio.loadmat(datapath[0], verify_compressed_data_integrity=False)
         Sa_track_top = loading_ST["Sa_track_top"]
@@ -623,7 +611,7 @@ if __name__ == "__main__":
 
         # Check for extremes: if criterion not satisfied, zero out the precip
         if extreme_days is not None:
-            if (yearnumber, a) not in extreme_days:
+            if (year, a) not in extreme_days:
                 P = np.zeros_like(P)
 
         # call the backward tracking function
@@ -639,8 +627,8 @@ if __name__ == "__main__":
             latitude,
             longitude,
             count_time_,
-            divt,
-            Kvf,
+            args.divt,
+            args.Kvf,
             Region,
             Fa_E_top,
             Fa_N_top,
@@ -653,6 +641,7 @@ if __name__ == "__main__":
             W_down,
             Sa_track_top_last,
             Sa_track_down_last,
+            args.is_global
         )
         # save this data
         sio.savemat(
@@ -674,7 +663,7 @@ if __name__ == "__main__":
             "Runtime Sa_track for day "
             + str(a + 1)
             + " in year "
-            + str(yearnumber)
+            + str(year)
             + " is",
             (end - start),
             " seconds.",

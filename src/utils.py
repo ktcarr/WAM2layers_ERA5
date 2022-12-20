@@ -2,6 +2,30 @@ import numpy as np
 import xarray as xr
 import calendar
 
+def get_next_doy_idx(year, doy_idx):
+    """get next year, day of year"""
+    last_doy_idx = 364 + calendar.isleap(year)
+
+    if doy_idx == last_doy_idx:
+        next_year    = year+1
+        next_doy_idx = 1
+    else:
+        next_year    = year
+        next_doy_idx = doy_idx+1
+
+    return next_year, next_doy_idx  
+
+def makeMask(path, lat, lon):
+    #     Function returns a mask with with 1s representing the area inside of path
+    lon_lat_grid = np.meshgrid(lon, lat)
+    t = zip(
+        lon_lat_grid[0].flatten(), lon_lat_grid[1].flatten()
+    )  # get pairs of lat/lon
+    t = np.array(list(t))  # convert to array
+    mask = path.contains_points(t).reshape(len(lat), len(lon))  # create mask
+    return mask
+
+
 ## get indices for day of year
 def get_doy_indices(doy_start, doy_end, year):
     """Get indices for days of year in given year,
