@@ -25,8 +25,7 @@ for VARNAME in vert-int sp tcw
 
 echo "Getting E and P"
 ERA_1HR_FP="$ERA_FP/single-levels/1hr"
-# for VARNAME in evaporation total_precipitation
-for VARNAME in evaporation
+for VARNAME in evaporation total_precipitation
     do
         cdo -b F64 -mergetime ${ERA_1HR_FP}/${VARNAME}/${YEAR}-*_${VARNAME}.nc ${INPUT_FP}/${YEAR}-${VARNAME}_temp.nc
         cdo remapbil,r360x181 ${INPUT_FP}/${YEAR}-${VARNAME}_temp.nc ${INPUT_FP}/${YEAR}-${VARNAME}.nc

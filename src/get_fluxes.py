@@ -7,14 +7,34 @@ from multiprocessing import Pool
 import numpy.ma as ma
 from timeit import default_timer as timer
 from os.path import join
+from copy import deepcopy
 
 eps = np.finfo(float).eps  # small number to avoid divide-by-zero
 
 ####### Functions #######
-def fix_lon(lon):
+def remove_negative_longitudes(lon):
     """Convert negative longitude values to positive"""
     lon[lon < 0] = lon[lon < 0] + 360
     return lon
+
+def fix_lonlat(data):
+    """Fix longitude/latitude coordinates on xr.dataarray/xr.dataset""" 
+    
+    # make sure name is "longitude" and "latitude", not "lon"/"lat"
+    if "lon" in data.coords:
+        data = data.rename({"lon":"longitude",
+                            "lat":"latitude"})
+
+    # make sure longitude values are in [0,360) and not [-180,180]
+    data["longitude"] = remove_negative_longitudes(data["longitude"].values)
+
+    return data
+
+def safe_open(fp):
+    """wrapper-function for xr.open_dataset which standardizes lon/lat
+       coordinates using fix_lonlat"""
+    return fix_lonlat(xr.open_dataset(fp)) 
+
 
 def get_fps(name, yearnumber, input_folder):
     """Get filepaths for given variable ('name') and year"""
@@ -88,15 +108,13 @@ def load_data(
     is_final_time=False,
 ):
     """Load specified data based, including handling end-of-year stuff"""
-    data = xr.open_dataset(fp)[varname]
-    data["longitude"] = fix_lon(
-        data["longitude"].values
-    )  # make sure longitudes are positive
+    data = safe_open(fp)[varname]
+        
+    ## Select specified lon/lat values
     data = data.sel(latitude=latitude, longitude=longitude)
     data = data.isel(time=slice(begin_time, begin_time + count_time + 1))
     if is_final_time:
-        data_next = xr.open_dataset(fp_next)[varname]
-        data_next["longitude"] = fix_lon(data_next["longitude"].values)
+        data_next = safe_open(fp_next)[varname]
         data_next = data_next.sel(latitude=latitude, longitude=longitude)
         data_next = data_next.isel(time=slice(0, 1))
         data = xr.concat([data, data_next], dim="time")
@@ -647,6 +665,7 @@ def getFa_Vert(
     count_time,
     latitude,
     longitude,
+    is_global
 ):
 
     # total moisture in the column
@@ -656,11 +675,11 @@ def getFa_Vert(
     # fluxes over the eastern boundary
     Fa_E_top_boundary = np.zeros(np.shape(Fa_E_top))
     Fa_E_top_boundary[:, :, :-1] = 0.5 * (Fa_E_top[:, :, :-1] + Fa_E_top[:, :, 1:])
-    if isglobal == 1:
+    if is_global == 1:
         Fa_E_top_boundary[:, :, -1] = 0.5 * (Fa_E_top[:, :, -1] + Fa_E_top[:, :, 0])
     Fa_E_down_boundary = np.zeros(np.shape(Fa_E_down))
     Fa_E_down_boundary[:, :, :-1] = 0.5 * (Fa_E_down[:, :, :-1] + Fa_E_down[:, :, 1:])
-    if isglobal == 1:
+    if is_global == 1:
         Fa_E_down_boundary[:, :, -1] = 0.5 * (Fa_E_down[:, :, -1] + Fa_E_down[:, :, 0])
 
     # find out where the positive and negative fluxes are
@@ -945,7 +964,7 @@ if __name__ == "__main__":
         )
 
         # 4 evaporation and precipitation
-        args.E, P = getEP(latitude, longitude, args.year, begin_time, count_time_, A_gridcell)
+        E, P = getEP(latitude, longitude, args.year, begin_time, count_time_, A_gridcell)
 
         # 5 put data on a smaller time step
         (
@@ -966,7 +985,7 @@ if __name__ == "__main__":
             W_down,
             E,
             P,
-            divt,
+            args.divt,
             count_time_,
             latitude,
             longitude,
@@ -980,8 +999,8 @@ if __name__ == "__main__":
             Fa_E_down_1,
             Fa_N_top_1,
             Fa_N_down_1,
-            timestep,
-            divt,
+            args.timestep,
+            args.divt,
             L_EW_gridcell,
             density_water,
             L_N_gridcell,
@@ -1000,10 +1019,11 @@ if __name__ == "__main__":
             P,
             W_top,
             W_down,
-            divt,
+            args.divt,
             count_time_,
             latitude,
             longitude,
+            args.is_global
         )
 
         sio.savemat(
