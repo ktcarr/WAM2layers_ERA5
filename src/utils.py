@@ -81,6 +81,19 @@ def get_constants(lon_min, lon_max, dlon, lat_min, lat_max, dlat):
 
     return constants
 
+def get_constants_from_args(args):
+    """Wrapper function for get_constants, which takes in args structure.
+    Useful for parsing user inputs from argparse"""
+    constants = get_constants(
+        lon_min=args.lon_min,
+        lon_max=args.lon_max,
+        dlon=args.dlon,
+        lat_min=args.lat_min,
+        lat_max=args.lat_max,
+        dlat=args.dlat,
+    )
+
+    return constants
 
 # def get_lsm(lsm_path):
 #     '''Tentative function to get LSM'''

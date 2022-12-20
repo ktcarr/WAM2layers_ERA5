@@ -10,9 +10,10 @@
 LOCAL_FP="/vortexfs1/home/kcarr/WAM2layers_ERA5"
 DATA_FP="/vortexfs1/scratch/kcarr/WAM2layer-data"
 
-INPUT_FOLDER=$DATA_FP/input
-INTER_FOLDER=$DATA_FP/interdata
-OUTPUT_FOLDER=$DATA_FP/output
+INPUT_FP=$DATA_FP/input
+FLUXES_FP=$DATA_FP/interdata
+TRACKED_MOISTURE_FP=$DATA_FP/tracked_moisture
+OUTPUT_FP=$DATA_FP/output
 
 module load mambaforge
 source activate $LOCAL_FP/envs
@@ -29,7 +30,7 @@ python -u $LOCAL_FP/src/get_fluxes.py --year $1 \
                                       --boundary "29" \
                                       --count_time "8" \
                                       --is_global "1" \
-                                      --input_folder $INPUT_FOLDER \
-                                      --interdata_folder $INTER_FOLDER
+                                      --input_folder $INPUT_FP \
+                                      --interdata_folder $FLUXES_FP
                                       # --doy_start $2 \
                                       # --doy_end $3 \

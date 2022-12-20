@@ -36,36 +36,36 @@ def safe_open(fp):
     return fix_lonlat(xr.open_dataset(fp)) 
 
 
-def get_fps(name, yearnumber, input_folder):
+def get_fps(name, yearnumber, input_fp):
     """Get filepaths for given variable ('name') and year"""
     sep = "-"  # if name=='uvq' else '_'
-    fp0 = join(input_folder, f"{yearnumber}{sep}{name}.nc")
-    fp1 = join(input_folder, f"{yearnumber+1}{sep}{name}.nc")
+    fp0 = join(input_fp, f"{yearnumber}{sep}{name}.nc")
+    fp1 = join(input_fp, f"{yearnumber+1}{sep}{name}.nc")
     return fp0, fp1
 
 # other scripts use exactly this sequence, do not change it unless you change it also in the scripts
-def get_datapath(yearnumber, a, input_folder, interdata_folder):
+def get_datapath(yearnumber, a, input_fp, fluxes_fp):
     """Get filepaths for data loading and saving"""
 
-    sp_data, sp_eoy_data = get_fps("sp", yearnumber, input_folder)
-    tcw_data, tcw_eoy_data = get_fps("tcw", yearnumber, input_folder)
+    sp_data, sp_eoy_data = get_fps("sp", yearnumber, input_fp)
+    tcw_data, tcw_eoy_data = get_fps("tcw", yearnumber, input_fp)
 
-    ewvf_data, ewvf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
-    nwvf_data, nwvf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
-    eclwf_data, eclwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
-    nclwf_data, nclwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
-    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
-    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", yearnumber, input_folder)
+    ewvf_data, ewvf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    nwvf_data, nwvf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    eclwf_data, eclwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    nclwf_data, nclwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
 
-    u_f_data, u_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
-    v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
-    q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber, input_folder)
+    u_f_data, u_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
+    v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
+    q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
 
-    evaporation_data = get_fps("evaporation", yearnumber, input_folder)[0]
-    precipitation_data = get_fps("total_precipitation", yearnumber, input_folder)[0]
+    evaporation_data = get_fps("evaporation", yearnumber, input_fp)[0]
+    precipitation_data = get_fps("total_precipitation", yearnumber, input_fp)[0]
 
     save_path = join(
-        interdata_folder, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
+        fluxes_fp, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat"
     )
 
     return (
@@ -836,7 +836,7 @@ def getFa_Vert(
 
 if __name__ == "__main__":
     import argparse
-    from utils import get_constants, get_doy_indices
+    from utils import get_constants_from_args, get_doy_indices
 
     start1 = timer()
 
@@ -864,20 +864,13 @@ if __name__ == "__main__":
     parser.add_argument("--is_global", dest="is_global", type=int, default=1)
 
     ## Data folders
-    parser.add_argument("--input_folder", dest="input_folder", type=str)
-    parser.add_argument("--interdata_folder", dest="interdata_folder", type=str)
+    parser.add_argument("--input_fp", dest="input_fp", type=str)
+    parser.add_argument("--fluxes_fp", dest="fluxes_fp", type=str)
 
     args = parser.parse_args() 
 
     # Get lon/lat, and gridcell dimensions
-    constants = get_constants(
-        lon_min=args.lon_min,
-        lon_max=args.lon_max,
-        dlon=args.dlon,
-        lat_min=args.lat_min,
-        lat_max=args.lat_max,
-        dlat=args.dlat,
-    )
+    constants = get_constants_from_args(args)
 
     # Parse constants
     g = constants["g"]
@@ -900,8 +893,8 @@ if __name__ == "__main__":
         datapath = get_datapath(
             args.year,
             doy_idx,
-            input_folder=args.input_folder,
-            interdata_folder=args.interdata_folder,
+            input_fp=args.input_fp,
+            fluxes_fp=args.fluxes_fp,
         )  # global variable
 
         # below: the coefficient of a must be multiple of daily sampling frequency
