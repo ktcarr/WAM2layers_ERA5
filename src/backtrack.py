@@ -5,7 +5,6 @@ import numpy as np
 import scipy.io as sio
 import os
 
-
 def create_empty_array(count_time, divt, latitude, longitude, year, doy_idx):
     """Create empty array using specified year and doy (dummy array for backtracking)."""
 
@@ -487,6 +486,7 @@ if __name__ == "__main__":
     #### Read parameters #####
     parser = argparse.ArgumentParser()
 
+    ## Specify region to track moisture from 
     parser.add_argument("--region_fp", dest="region_fp")
     parser.add_argument("--list_of_days_fp", dest="list_of_days_fp")
 
@@ -503,16 +503,14 @@ if __name__ == "__main__":
     parser.add_argument("--dlat", dest="dlat", type=float, default=1.0)
     parser.add_argument("--dlon", dest="dlon", type=float, default=1.0)
 
-    ## Numerical parameters
-    parser.add_argument("--timestep", dest="timestep", type=float, default=10800.0)
+    ## Numerical parameters 
     parser.add_argument("--Kvf", dest="Kvf", default=3.0, type=float)
     parser.add_argument("--count_time", dest="count_time", type=int, default=8)
     parser.add_argument("--is_global", dest="is_global", type=int, default=1)
 
     ## Data folders
     parser.add_argument("--fluxes_fp", dest="fluxes_fp", type=str)
-    parser.add_argument("--tracked_moisture_fp", dest="tracked_moisture_fp", type=str)
-    parser.add_argument("--output_fp", dest="output_fp", type=str)
+    parser.add_argument("--tracked_moisture_fp", dest="tracked_moisture_fp", type=str) 
 
     args = parser.parse_args()
 
@@ -530,9 +528,7 @@ if __name__ == "__main__":
     L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Check if interdata folder exists:
-    assert os.path.isdir(
-        fluxes_fp
-    ), "Please create the interdata_folder before running the script"
+    assert os.path.isdir(fluxes_fp), "fluxes_fp does not exist"
 
     ########### Load list of days to track moisture for, if path is specified ##################
     if list_of_days_fp is None:
@@ -541,8 +537,9 @@ if __name__ == "__main__":
         extreme_days = utils.load_doy_list(list_of_days_fp)
 
     # Create mask for region (load vertices of path from specified file)
-    region_path = Path(np.load(region_fp))
-    Region = lsm * makeMask(region_path, latitude, longitude)
+    outline  = np.loadtxt(args.region_fp, delimiter=",")
+    outline  = Path(outline) # convert to "Path" datatype
+    Region = lsm * utils.makeMask(outline, latitude, longitude) # convert to mask
 
     #%% Runtime & Results
     start1 = timer()
