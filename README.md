@@ -3,20 +3,19 @@
 ## File structure  
 ```
 |-- scripts  
-     -- get_fluxes.sh  
-     -- backtrack.sh  
-     -- backtrack_parallel.sh  
-     -- get_fluxes_parallel.sh   
+     -- run.sh  
     |-- move_to_scratch  
          -- move_to_scratch.sh  
-         -- move_to_scratch_parallel.sh  
+         -- move_to_scratch_parallel.sh   
 |-- src  
      -- __init__.py  
      -- get_fluxes.py  
      -- backtrack.py  
      -- postprocess.py  
-     -- utils.py    
-|-- tests  
+     -- utils.py  
+|-- data
+     -- midwest_outline.csv  
+|-- envs
  -- .gitignore  
  -- environment.yml  
  -- README.md  
@@ -43,7 +42,7 @@
 
 ```move_to_scratch_parallel.sh```: Move all years in parallel.  
 
-```get_fluxes.sh```: bash script to compute fluxes. Contains parameters for given experiment; this inclues lon/lat ranges, filepaths, and numerical parameters.  
+```run.sh```: bash script to run model which contains parameters for given experiment.  
 
 
 ## Description of files in ```./src/```
@@ -57,4 +56,4 @@
 ```utils.py```: Compute constants (e.g., gridcell area)  
 
 ## Running the model
-1. Edit parameters as desired in the ```get_fluxes.sh``` script. After editing, run a single year with ```./get_fluxes --year <YEAR>```  
+1. Edit parameters as desired in the ```run.sh``` script.  
