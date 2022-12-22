@@ -16,7 +16,7 @@ DATA_FP="$LOCAL_FP/data"
 
 SCRATCH_FP="/vortexfs1/scratch/kcarr/WAM2layer-data"
 INPUT_FP=$SCRATCH_FP/input
-FLUXES_FP=$SCRATCH_FP/interdata
+FLUXES_FP=$SCRATCH_FP/fluxes
 TRACKED_MOISTURE_FP=$SCRATCH_FP/tracked_moisture
 OUTPUT_FP=$SCRATCH_FP/output
 
@@ -39,25 +39,25 @@ COUNT_TIME=8   # number of timesteps to process at once
 BOUNDARY=29    # index of pressure level which divides model layers
 IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 
-module load mambaforge
-source activate $LOCAL_FP/envs
+# module load mambaforge
+# source activate $LOCAL_FP/envs
 
-python -u $LOCAL_FP/src/get_fluxes.py --year $1 \
-                                      --lon_min $LON_MIN \
-                                      --lon_max $LON_MAX \
-                                      --lat_min $LAT_MIN \
-                                      --lat_max $LAT_MAX \
-                                      --dlat $DLAT \
-                                      --dlon $DLON \
-                                      --timestep $TIMESTEP \
-                                      --divt $DIVT \
-                                      --boundary $BOUNDARY \
-                                      --count_time $COUNT_TIME \
-                                      --is_global $IS_GLOBAL \
-                                      --input_fp $INPUT_FP \
-                                      --fluxes_fp $FLUXES_FP
-                                      # --doy_start $2 \
-                                      # --doy_end $3 \
+# python -u $LOCAL_FP/src/get_fluxes.py --year $1 \
+#                                       --lon_min $LON_MIN \
+#                                       --lon_max $LON_MAX \
+#                                       --lat_min $LAT_MIN \
+#                                       --lat_max $LAT_MAX \
+#                                       --dlat $DLAT \
+#                                       --dlon $DLON \
+#                                       --timestep $TIMESTEP \
+#                                       --divt $DIVT \
+#                                       --boundary $BOUNDARY \
+#                                       --count_time $COUNT_TIME \
+#                                       --is_global $IS_GLOBAL \
+#                                       --input_fp $INPUT_FP \
+#                                       --fluxes_fp $FLUXES_FP
+#                                       # --doy_start $2 \
+#                                       # --doy_end $3 \
 
 python -u $LOCAL_FP/src/backtrack.py --year $1 \
                                      --lon_min $LON_MIN \
@@ -67,10 +67,12 @@ python -u $LOCAL_FP/src/backtrack.py --year $1 \
                                      --dlat $DLAT \
                                      --dlon $DLON \
                                      --divt $DIVT \
+                                     --kvf $KVF \
                                      --count_time $COUNT_TIME \
                                      --is_global $IS_GLOBAL \
+                                     --fluxes_fp $FLUXES_FP \
                                      --input_fp $INPUT_FP \
-                                     --fluxes_fp $FLUXES_FP
-                                     --tracked_moisture_fp $TRACKED_MOISTURE_FP
-                                     # --doy_start $2 \
-                                     # --doy_end $3 \
+                                     --tracked_moisture_fp $TRACKED_MOISTURE_FP \
+                                     --region_fp $REGION_FP \
+                                     --doy_start 1 \
+                                     --doy_end 33 \

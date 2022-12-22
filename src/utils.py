@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 import calendar
 import pickle
+from matplotlib.path import Path
 
 def load_doy_list(fp):
     """load list of doy indices for moisture tracking"""
@@ -15,10 +16,15 @@ def load_doy_list(fp):
     
     return doy_indices
 
+def load_lsm(lsm_fp):
+    """load LSM from filepath"""
+    lsm = xr.open_dataarray(lsm_fp)
+    lsm = lsm.isel(time=0, drop=True)
+    return lsm.astype('bool')
 
 def is_last_doy_idx(year, doy_idx):
     """check if doy_idx is the last for the given year"""
-   return doy_idx == 364 + calendar.isleap(year) 
+    return doy_idx == 364 + calendar.isleap(year)
 
 
 def get_next_doy_idx(year, doy_idx):
@@ -34,14 +40,29 @@ def get_next_doy_idx(year, doy_idx):
     return next_year, next_doy_idx  
 
 
-def makeMask(path, lat, lon):
-    #     Function returns a mask with with 1s representing the area inside of path
+def makeMask(vertices, lat, lon, lsm=None):
+    """Function returns a mask with with 1s representing the area inside of vertices
+    'vertices' is an Nx2 array, representing boundaries of a region"""
+
+    # create 2-D grid from lat/lon coords
     lon_lat_grid = np.meshgrid(lon, lat)
+
+    # next, get pairs of lon/lat
     t = zip(
         lon_lat_grid[0].flatten(), lon_lat_grid[1].flatten()
-    )  # get pairs of lat/lon
+    )
+
+    # convert back to array
     t = np.array(list(t))  # convert to array
+
+    # convert vertices into a matplotlib Path 
+    path = Path(vertices)
     mask = path.contains_points(t).reshape(len(lat), len(lon))  # create mask
+
+    # if LSM is supplied, mask out the ocean
+    if lsm is not None:
+        mask *= lsm.sel(latitude=lat, longitude=lon)
+
     return mask
 
 
