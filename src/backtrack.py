@@ -5,6 +5,7 @@ import numpy as np
 import scipy.io as sio
 import os
 
+
 def create_empty_array(count_time, divt, latitude, longitude, fp):
     """Create empty array at specified filepath  (dummy array for backtracking)."""
 
@@ -12,9 +13,9 @@ def create_empty_array(count_time, divt, latitude, longitude, fp):
     dims = (int(count_time * divt) + 1, len(latitude), len(longitude))
     Sa_track_top = np.zeros(dims)
     Sa_track_down = np.zeros(dims)
- 
+
     sio.savemat(
-        fp, 
+        fp,
         {
             "Sa_track_top": Sa_track_top,
             "Sa_track_down": Sa_track_down,
@@ -472,18 +473,18 @@ def get_Sa_track_backward(
 
 
 if __name__ == "__main__":
-    
+
     import xarray as xr
     import argparse
     import utils
     from timeit import default_timer as timer
- 
+
     start1 = timer()
 
     #### Read parameters #####
     parser = argparse.ArgumentParser()
 
-    ## Specify region to track moisture from 
+    ## Specify region to track moisture from
     parser.add_argument("--input_fp", dest="input_fp")
     parser.add_argument("--region_fp", dest="region_fp")
     parser.add_argument("--list_of_days_fp", dest="list_of_days_fp")
@@ -501,7 +502,7 @@ if __name__ == "__main__":
     parser.add_argument("--dlat", dest="dlat", type=float, default=1.0)
     parser.add_argument("--dlon", dest="dlon", type=float, default=1.0)
 
-    ## Numerical parameters 
+    ## Numerical parameters
     parser.add_argument("--divt", dest="divt", default=45, type=int)
     parser.add_argument("--kvf", dest="kvf", default=2.0, type=float)
     parser.add_argument("--count_time", dest="count_time", default=8, type=int)
@@ -509,7 +510,7 @@ if __name__ == "__main__":
 
     ## Data folders
     parser.add_argument("--fluxes_fp", dest="fluxes_fp", type=str)
-    parser.add_argument("--tracked_moisture_fp", dest="tracked_moisture_fp", type=str) 
+    parser.add_argument("--tracked_moisture_fp", dest="tracked_moisture_fp", type=str)
 
     args = parser.parse_args()
 
@@ -536,17 +537,17 @@ if __name__ == "__main__":
         extreme_days = utils.load_doy_list(list_of_days_fp)
 
     # Create mask for region (load vertices of path from specified file)
-    outline  = np.loadtxt(args.region_fp, delimiter=",")
-    lsm      = utils.load_lsm(lsm_fp=os.path.join(args.input_fp, "lsm.nc")) 
-    Region   = utils.makeMask(outline, latitude, longitude, lsm).values
-    
+    outline = np.loadtxt(args.region_fp, delimiter=",")
+    lsm = utils.load_lsm(lsm_fp=os.path.join(args.input_fp, "lsm.nc"))
+    Region = utils.makeMask(outline, latitude, longitude, lsm).values
+
     #%% Runtime & Results
     start1 = timer()
 
     # Get days of year
     doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
     doy_indices = doy_indices[::-1]  # put in descending order
- 
+
     for doy_idx in doy_indices:
 
         # last day has one fewer timestep
@@ -562,13 +563,21 @@ if __name__ == "__main__":
             previous_data_to_load = str(args.year + 1) + "-0"
         else:
             previous_data_to_load = str(args.year) + "-" + str(doy_idx + 1)
-        
+
         ## Get filepaths
-        datapath = data_path(previous_data_to_load, args.year, doy_idx, args.fluxes_fp, args.tracked_moisture_fp)
+        datapath = data_path(
+            previous_data_to_load,
+            args.year,
+            doy_idx,
+            args.fluxes_fp,
+            args.tracked_moisture_fp,
+        )
 
         ## Create 'dummy' array for first backtracking step
-        if doy_idx==doy_indices[0]:
-            create_empty_array(args.count_time - 1, args.divt, latitude, longitude, datapath[0])
+        if doy_idx == doy_indices[0]:
+            create_empty_array(
+                args.count_time - 1, args.divt, latitude, longitude, datapath[0]
+            )
 
         loading_ST = sio.loadmat(datapath[0], verify_compressed_data_integrity=False)
         Sa_track_top = loading_ST["Sa_track_top"]
@@ -644,7 +653,11 @@ if __name__ == "__main__":
 
         end = timer()
         print(
-            "Runtime Sa_track for day " + str(doy_idx+1) + " in year " + str(args.year) + " is",
+            "Runtime Sa_track for day "
+            + str(doy_idx + 1)
+            + " in year "
+            + str(args.year)
+            + " is",
             (end - start),
             " seconds.",
         )

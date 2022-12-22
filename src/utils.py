@@ -4,23 +4,26 @@ import calendar
 import pickle
 from matplotlib.path import Path
 
+
 def load_doy_list(fp):
     """load list of doy indices for moisture tracking"""
-    
+
     with open(fp, "rb") as f:
         doy_indices = pickle.load(f)
-    
+
         # if in array format, convert to list of tuples
         if type(doy_indices) is np.ndarray:
             doy_indices = list(zip(doy_indices[:, 0], doy_indices[:, 1]))
-    
+
     return doy_indices
+
 
 def load_lsm(lsm_fp):
     """load LSM from filepath"""
     lsm = xr.open_dataarray(lsm_fp)
     lsm = lsm.isel(time=0, drop=True)
-    return lsm.astype('bool')
+    return lsm.astype("bool")
+
 
 def is_last_doy_idx(year, doy_idx):
     """check if doy_idx is the last for the given year"""
@@ -28,16 +31,16 @@ def is_last_doy_idx(year, doy_idx):
 
 
 def get_next_doy_idx(year, doy_idx):
-    """get next year, day of year index""" 
+    """get next year, day of year index"""
 
     if is_last_doy_idx(year, doy_idx):
-        next_year    = year+1
+        next_year = year + 1
         next_doy_idx = 1
     else:
-        next_year    = year
-        next_doy_idx = doy_idx+1
+        next_year = year
+        next_doy_idx = doy_idx + 1
 
-    return next_year, next_doy_idx  
+    return next_year, next_doy_idx
 
 
 def makeMask(vertices, lat, lon, lsm=None):
@@ -48,14 +51,12 @@ def makeMask(vertices, lat, lon, lsm=None):
     lon_lat_grid = np.meshgrid(lon, lat)
 
     # next, get pairs of lon/lat
-    t = zip(
-        lon_lat_grid[0].flatten(), lon_lat_grid[1].flatten()
-    )
+    t = zip(lon_lat_grid[0].flatten(), lon_lat_grid[1].flatten())
 
     # convert back to array
     t = np.array(list(t))  # convert to array
 
-    # convert vertices into a matplotlib Path 
+    # convert vertices into a matplotlib Path
     path = Path(vertices)
     mask = path.contains_points(t).reshape(len(lat), len(lon))  # create mask
 
@@ -145,6 +146,7 @@ def get_constants(lon_min, lon_max, dlon, lat_min, lat_max, dlat):
 
     return constants
 
+
 def get_constants_from_args(args):
     """Wrapper function for get_constants, which takes in args structure.
     Useful for parsing user inputs from argparse"""
@@ -158,6 +160,7 @@ def get_constants_from_args(args):
     )
 
     return constants
+
 
 # def get_lsm(lsm_path):
 #     '''Tentative function to get LSM'''
