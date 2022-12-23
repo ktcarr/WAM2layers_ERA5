@@ -4,45 +4,24 @@ import datetime
 import os
 
 
-def data_path(y, doy_idx, years, timetracking):
+def data_path(year, doy_idx, fluxes_fp, tracked_moisture_fp):
     load_Sa_track = os.path.join(
-        sub_interdata_folder, str(y) + "-" + str(doy_idx) + "Sa_track.mat"
-    )
-
-    load_Sa_time = os.path.join(
-        sub_interdata_folder, str(y) + "-" + str(doy_idx) + "Sa_time.mat"
+        tracked_moisture_fp, str(year) + "-" + str(doy_idx) + "Sa_track.mat"
     )
 
     load_fluxes_and_storages = os.path.join(
-        interdata_folder, str(y) + "-" + str(doy_idx) + "fluxes_storages.mat"
+        fluxes_fp, str(year) + "-" + str(doy_idx) + "fluxes_storages.mat"
     )
 
     save_path = os.path.join(
         output_folder,
-        "E_track_continental_full"
-        + str(years[0])
-        + "-"
-        + str(years[-1])
-        + "-timetracking"
-        + str(timetracking)
-        + ".mat",
-    )
-
-    save_path_daily = os.path.join(
-        output_folder,
-        "E_track_continental_daily_full"
-        + str(y)
-        + "-timetracking"
-        + str(timetracking)
-        + ".mat",
+        "E_track_continental" + str(year) + ".mat",
     )
 
     return (
         load_Sa_track,
-        load_Sa_time,
         load_fluxes_and_storages,
         save_path,
-        save_path_daily,
     )
 
 
@@ -126,7 +105,7 @@ if __name__ == "__main__":
         Sa_track = Sa_track_top + Sa_track_down
 
         # load the total moisture data
-        loading_FS = sio.loadmat(datapath[2], verify_compressed_data_integrity=False)
+        loading_FS = sio.loadmat(datapath[1], verify_compressed_data_integrity=False)
         Fa_E_top = loading_FS["Fa_E_top"]
         Fa_N_top = loading_FS["Fa_N_top"]
         Fa_E_down = loading_FS["Fa_E_down"]
@@ -171,7 +150,7 @@ if __name__ == "__main__":
             E_time_per_day = 0
 
         sio.savemat(
-            datapath[4],
+            datapath[2],
             {
                 "E_per_day": E_per_day,
                 "E_track_per_day": E_track_per_day,

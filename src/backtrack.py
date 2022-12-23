@@ -32,22 +32,15 @@ def data_path(previous_data_to_load, year, doy_idx, fluxes_fp, tracked_moisture_
     load_fluxes_and_storages = os.path.join(
         fluxes_fp, str(year) + "-" + str(doy_idx) + "fluxes_storages.mat"
     )
-    load_Sa_time = os.path.join(
-        tracked_moisture_fp, previous_data_to_load + "Sa_time.mat"
-    )
 
     save_path_track = os.path.join(
         tracked_moisture_fp, str(year) + "-" + str(doy_idx) + "Sa_track.mat"
     )
-    save_path_time = os.path.join(
-        tracked_moisture_fp, str(year) + "-" + str(doy_idx) + "Sa_time.mat"
-    )
+
     return (
         load_Sa_track,
         load_fluxes_and_storages,
-        load_Sa_time,
         save_path_track,
-        save_path_time,
     )
 
 
@@ -638,7 +631,7 @@ if __name__ == "__main__":
         )
         # save this data
         sio.savemat(
-            datapath[3],
+            datapath[2],
             {
                 "Sa_track_top": Sa_track_top,
                 "Sa_track_down": Sa_track_down,
