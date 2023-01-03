@@ -541,13 +541,7 @@ if __name__ == "__main__":
     doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
     doy_indices = doy_indices[::-1]  # put in descending order
 
-    for doy_idx in doy_indices:
-
-        # last day has one fewer timestep
-        if doy_idx == doy_indices[0]:
-            count_time_ = args.count_time - 1
-        else:
-            count_time_ = args.count_time
+    for doy_idx in doy_indices: 
 
         start = timer()
 
@@ -568,8 +562,8 @@ if __name__ == "__main__":
 
         ## Create 'dummy' array for first backtracking step
         if doy_idx == doy_indices[0]:
-            create_empty_array(
-                args.count_time - 1, args.divt, latitude, longitude, datapath[0]
+            create_empty_array( 
+                args.count_time, args.divt, latitude, longitude, datapath[0]
             )
 
         loading_ST = sio.loadmat(datapath[0], verify_compressed_data_integrity=False)
@@ -612,7 +606,7 @@ if __name__ == "__main__":
         ) = get_Sa_track_backward(
             latitude,
             longitude,
-            count_time_,
+            args.count_time,
             args.divt,
             args.kvf,
             Region,
@@ -645,15 +639,7 @@ if __name__ == "__main__":
         )
 
         end = timer()
-        print(
-            "Runtime Sa_track for day "
-            + str(doy_idx + 1)
-            + " in year "
-            + str(args.year)
-            + " is",
-            (end - start),
-            " seconds.",
-        )
+        print(f"Backtrack time for day {doy_idx+1}: {end-start:.2f} seconds")
 
     end1 = timer()
-    print("The total runtime of precipitation_shed is", (end1 - start1), " seconds.")
+    print(f"Total runtime for backtracking is {end1 - start1:.2f} seconds.")

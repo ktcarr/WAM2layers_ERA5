@@ -833,7 +833,7 @@ def getFa_Vert(
 if __name__ == "__main__":
 
     import argparse
-    import utils
+    import src.utils
     from timeit import default_timer as timer
     import scipy.io as sio
 
@@ -869,7 +869,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Get lon/lat, and gridcell dimensions
-    constants = utils.get_constants_from_args(args)
+    constants = src.utils.get_constants_from_args(args)
 
     # Parse constants
     g = constants["g"]
@@ -882,7 +882,7 @@ if __name__ == "__main__":
     L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Get days of year
-    doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
+    doy_indices = src.utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
 
     #### Loop through days
     for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
@@ -900,9 +900,12 @@ if __name__ == "__main__":
         # (e.g. 8/day for 3-hourly data)
         begin_time = doy_idx * args.count_time
 
+        # check if this is the 
+        is_final_time = src.utils.is_last_doy_idx(args.year, doy_idx)
+
         # If at the last day of data, can't fetch next day's data
         # (need to reduce number of timesteps by 1)
-        if is_last_doy_idx(year, doy_idx):
+        if is_final_time:
             count_time_ = args.count_time - 1
         else:
             count_time_ = args.count_time
@@ -1036,14 +1039,7 @@ if __name__ == "__main__":
         )
 
         end = timer()
-        print(
-            "Runtime fluxes_and_storages for day "
-            + str(doy_idx + 1)
-            + " in year "
-            + str(args.year)
-            + " is",
-            (end - start),
-            " seconds.",
-        )
+        print(f"get_fluxes runtime for day {doy_idx+1}: {end - start : .2f} sec.")
+                    )
     end1 = timer()
-    print("The total runtime is", (end1 - start1), " seconds.")
+    print(f"Total get_fluxes runtime for {args.year}: {end1 - start1 : .2f} seconds.")
