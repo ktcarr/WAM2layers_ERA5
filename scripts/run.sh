@@ -4,12 +4,8 @@
 #SBATCH --ntasks=1
 #SBATCH --mem=64gb
 #SBATCH --time=23:59:00
-#SBATCH --job-name global
+#SBATCH --job-name track
 #SBATCH --output=log_%j.log
-
-# load environment
-module load mambaforge
-source activate $LOCAL_FP/envs
 
 ## Parse arguments to script
 YEAR=$1
@@ -45,6 +41,11 @@ COUNT_TIME=8   # number of timesteps to process at once
 BOUNDARY=29    # index of pressure level which divides model layers
 IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 
+# load environment
+module load mambaforge
+source activate $LOCAL_FP/envs
+
+# run the model
 python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
                                       --lon_min $LON_MIN \
                                       --lon_max $LON_MAX \
