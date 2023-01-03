@@ -7,12 +7,14 @@
 #SBATCH --job-name global
 #SBATCH --output=log_%j.log
 
+# load environment
+module load mambaforge
+source activate $LOCAL_FP/envs
 
-###### Parameters #######
-
-## days of year to track
-DOY_START=365
-DOY_END=366
+## Parse arguments to script
+YEAR=$1
+DOY_START=$2
+DOY_END=$3
 
 ## Set filepaths ##
 LOCAL_FP="/vortexfs1/home/kcarr/WAM2layers_ERA5"
@@ -43,10 +45,7 @@ COUNT_TIME=8   # number of timesteps to process at once
 BOUNDARY=29    # index of pressure level which divides model layers
 IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 
-# module load mambaforge
-# source activate $LOCAL_FP/envs
-
-python -u $LOCAL_FP/src/get_fluxes.py --year $1 \
+python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
                                       --lon_min $LON_MIN \
                                       --lon_max $LON_MAX \
                                       --lat_min $LAT_MIN \
@@ -63,7 +62,7 @@ python -u $LOCAL_FP/src/get_fluxes.py --year $1 \
                                       --doy_start $DOY_START \
                                       --doy_end $DOY_END
 
-python -u $LOCAL_FP/src/backtrack.py --year $1 \
+python -u $LOCAL_FP/src/backtrack.py --year $YEAR \
                                      --lon_min $LON_MIN \
                                      --lon_max $LON_MAX \
                                      --lat_min $LAT_MIN \
@@ -81,7 +80,7 @@ python -u $LOCAL_FP/src/backtrack.py --year $1 \
                                      --doy_start $DOY_START \
                                      --doy_end $DOY_END
 
-python -u $LOCAL_FP/src/postprocess.py --year $1 \
+python -u $LOCAL_FP/src/postprocess.py --year $YEAR \
                                        --lon_min $LON_MIN \
                                        --lon_max $LON_MAX \
                                        --lat_min $LAT_MIN \

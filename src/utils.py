@@ -76,15 +76,18 @@ def makeMask(vertices, lat, lon, lsm=None):
 ## get indices for day of year
 def get_doy_indices(doy_start, doy_end, year):
     """Get indices for days of year in given year,
-    based on specifed start and end doy"""
+    based on specifed start and end doy.
+    If doy_end==-1, set doy_end to the last day
+    in the calendar year"""
 
-    if doy_start is None:
-        is_leap_year = int(calendar.isleap(year))
-        doy = np.arange(1, 366 + is_leap_year)
-    else:
-        doy = np.arange(doy_start, doy_end + 1)
-    doy_indices = doy - 1  # indices start with 0
+    # handle leap year value
+    is_leap_year = int(calendar.isleap(year))
+    doy_end_   = 365 + is_leap_year if (doy_end==-1) else doy_end
 
+    # get array of values
+    doy         = np.arange(doy_start, doy_end_+1)
+    doy_indices = doy-1 # indices start with zero 
+ 
     return doy_indices
 
 
