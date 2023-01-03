@@ -156,12 +156,8 @@ if __name__ == "__main__":
         storage_daily.append(storage.mean("time"))
 
         end = timer()
-        print(
-            "Runtime output for day " + str(doy_idx + 1) + " in year " + str(args.year) + " is",
-            (end - start),
-            " seconds.",
-        )
-    
+        print(f"Postprocess runtime for day {doy_idx+1}: {end-start:.2f} seconds")
+   
     ## concatenate data from individual days
     time_idx = src.utils.get_time_idx(doy_indices, args.year)
     fluxes_daily = xr.concat(fluxes_daily, dim=time_idx)

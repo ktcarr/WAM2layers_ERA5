@@ -902,17 +902,10 @@ if __name__ == "__main__":
 
         # check if this is the 
         is_final_time = src.utils.is_last_doy_idx(args.year, doy_idx)
-
-        # If at the last day of data, can't fetch next day's data
-        # (need to reduce number of timesteps by 1)
-        if is_final_time:
-            count_time_ = args.count_time - 1
-        else:
-            count_time_ = args.count_time
-
+ 
         # 1 Interpolate U,V,Q data to match surface pressure
         UVQ_RAW = getUVQ(
-            latitude, longitude, is_final_time, doy_idx, begin_time, count_time_
+            latitude, longitude, is_final_time, doy_idx, begin_time, args.count_time
         )
         Pres, DP, LEVELS = getPres(
             latitude,
@@ -920,11 +913,11 @@ if __name__ == "__main__":
             is_final_time,
             doy_idx,
             begin_time,
-            count_time_,
+            args.count_time,
             top_level=100,
             n_levels=37,
         )
-        U, V, Q = interp_uvq(count_time_)
+        U, V, Q = interp_uvq(args.count_time)
 
         # 2 integrate specific humidity to get the (total) column water (vapor)
         cw, W_top, W_down = getW(
@@ -935,7 +928,7 @@ if __name__ == "__main__":
             is_final_time,
             doy_idx,
             begin_time,
-            count_time_,
+            args.count_time,
             density_water,
             g,
             A_gridcell,
@@ -950,7 +943,7 @@ if __name__ == "__main__":
             cw,
             U,
             V,
-            count_time_,
+            args.count_time,
             begin_time,
             args.year,
             doy_idx,
@@ -959,7 +952,7 @@ if __name__ == "__main__":
 
         # 4 evaporation and precipitation
         E, P = getEP(
-            latitude, longitude, args.year, begin_time, count_time_, A_gridcell
+            latitude, longitude, args.year, begin_time, args.count_time, A_gridcell
         )
 
         # 5 put data on a smaller time step
@@ -982,7 +975,7 @@ if __name__ == "__main__":
             E,
             P,
             args.divt,
-            count_time_,
+            args.count_time,
             latitude,
             longitude,
         )
@@ -1002,7 +995,7 @@ if __name__ == "__main__":
             L_N_gridcell,
             L_S_gridcell,
             latitude,
-            count_time_,
+            args.count_time,
         )
 
         # 7 determine the vertical moisture flux
@@ -1016,7 +1009,7 @@ if __name__ == "__main__":
             W_top,
             W_down,
             args.divt,
-            count_time_,
+            args.count_time,
             latitude,
             longitude,
             args.is_global,
@@ -1040,6 +1033,6 @@ if __name__ == "__main__":
 
         end = timer()
         print(f"get_fluxes runtime for day {doy_idx+1}: {end - start : .2f} sec.")
-                    )
+
     end1 = timer()
     print(f"Total get_fluxes runtime for {args.year}: {end1 - start1 : .2f} seconds.")
