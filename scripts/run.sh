@@ -59,20 +59,33 @@ IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 #                                       # --doy_start $2 \
 #                                       # --doy_end $3 \
 
-python -u $LOCAL_FP/src/backtrack.py --year $1 \
-                                     --lon_min $LON_MIN \
-                                     --lon_max $LON_MAX \
-                                     --lat_min $LAT_MIN \
-                                     --lat_max $LAT_MAX \
-                                     --dlat $DLAT \
-                                     --dlon $DLON \
-                                     --divt $DIVT \
-                                     --kvf $KVF \
-                                     --count_time $COUNT_TIME \
-                                     --is_global $IS_GLOBAL \
-                                     --fluxes_fp $FLUXES_FP \
-                                     --input_fp $INPUT_FP \
-                                     --tracked_moisture_fp $TRACKED_MOISTURE_FP \
-                                     --region_fp $REGION_FP \
-                                     --doy_start 1 \
-                                     --doy_end 33 \
+# python -u $LOCAL_FP/src/backtrack.py --year $1 \
+#                                      --lon_min $LON_MIN \
+#                                      --lon_max $LON_MAX \
+#                                      --lat_min $LAT_MIN \
+#                                      --lat_max $LAT_MAX \
+#                                      --dlat $DLAT \
+#                                      --dlon $DLON \
+#                                      --divt $DIVT \
+#                                      --kvf $KVF \
+#                                      --count_time $COUNT_TIME \
+#                                      --is_global $IS_GLOBAL \
+#                                      --fluxes_fp $FLUXES_FP \
+#                                      --input_fp $INPUT_FP \
+#                                      --tracked_moisture_fp $TRACKED_MOISTURE_FP \
+#                                      --region_fp $REGION_FP \
+#                                      --doy_start 1 \
+#                                      --doy_end 33
+
+python -u $LOCAL_FP/src/postprocess.py --year $1 \
+                                       --lon_min $LON_MIN \
+                                       --lon_max $LON_MAX \
+                                       --lat_min $LAT_MIN \
+                                       --lat_max $LAT_MAX \
+                                       --dlat $DLAT \
+                                       --dlon $DLON \
+                                       --fluxes_fp $FLUXES_FP \
+                                       --tracked_moisture_fp $TRACKED_MOISTURE_FP \
+                                       --output_fp $OUTPUT_FP \
+                                       --doy_start 12 \
+                                       --doy_end 14

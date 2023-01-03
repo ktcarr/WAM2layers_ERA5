@@ -1,10 +1,8 @@
 import numpy as np
-import scipy.io as sio
-import datetime
-import os
+import xarray as xr
 
 
-def data_path(year, doy_idx, fluxes_fp, tracked_moisture_fp):
+def data_path(year, doy_idx, fluxes_fp, tracked_moisture_fp, output_fp):
     load_Sa_track = os.path.join(
         tracked_moisture_fp, str(year) + "-" + str(doy_idx) + "Sa_track.mat"
     )
@@ -14,7 +12,7 @@ def data_path(year, doy_idx, fluxes_fp, tracked_moisture_fp):
     )
 
     save_path = os.path.join(
-        output_folder,
+        output_fp,
         "E_track_continental" + str(year) + ".mat",
     )
 
@@ -24,12 +22,83 @@ def data_path(year, doy_idx, fluxes_fp, tracked_moisture_fp):
         save_path,
     )
 
+def get_xr(loading_FS, loading_ST, latitude, longitude):
+    """function for converting scipy.mat output to xarray"""
+
+    ## get data 
+    Sa_track_top = loading_ST["Sa_track_top"]
+    Sa_track_down = loading_ST["Sa_track_down"] 
+    north_loss = loading_ST["north_loss"]
+    south_loss = loading_ST["south_loss"]
+    down_to_top = loading_ST["down_to_top"]
+    top_to_down = loading_ST["top_to_down"]
+    water_lost = loading_ST["water_lost"]
+    
+    # load the total moisture data 
+    Fa_E_top = loading_FS["Fa_E_top"]
+    Fa_N_top = loading_FS["Fa_N_top"]
+    Fa_E_down = loading_FS["Fa_E_down"]
+    Fa_N_down = loading_FS["Fa_N_down"]
+    Fa_Vert = loading_FS["Fa_Vert"]
+    E = loading_FS["E"]
+    P = loading_FS["P"]
+    W_top = loading_FS["W_top"]
+    W_down = loading_FS["W_down"]
+
+    ## Stack data with two layers
+    Sa_track = np.stack([Sa_track_down, Sa_track_top], axis=1)
+    W = np.stack([W_down, W_top], axis=1)
+    Fa_E = np.stack([Fa_E_down, Fa_E_top], axis=1)
+    Fa_N = np.stack([Fa_N_down, Fa_N_top], axis=1)
+
+    ## define coordinates and dimensions for xarray
+    coords=dict(
+                longitude=(["longitude"], longitude),
+                latitude=(["latitude"], latitude),
+                time=(["time"], np.arange(E.shape[0])),
+                level=(["level"], ["down","top"])
+    )
+
+    dims_1d = ["time","longitude"]
+    dims_2d = ["time","latitude","longitude"]
+    dims_3d = ["time","level","latitude","longitude"]
+
+    ## Convert to dataset
+    storage = xr.Dataset(
+        data_vars=dict(
+                Sa_track=(dims_3d, Sa_track[1:]),
+                W=(dims_3d, W[1:]),
+                ),
+        coords=coords
+    )
+
+    fluxes = xr.Dataset(
+        data_vars=dict(
+                Fa_E=(dims_3d, Fa_E),
+                Fa_N=(dims_3d, Fa_N),
+                Fa_Vert=(dims_2d, Fa_Vert),
+                E=(dims_2d, E),
+                P=(dims_2d, P),
+                north_loss=(dims_1d, north_loss.squeeze()),
+                south_loss=(dims_1d, south_loss.squeeze()),
+                water_lost=(dims_2d, water_lost)
+            ),
+        coords=coords
+    )
+
+    return storage, fluxes
+
+
 
 #%% Runtime & Results
 if __name__ == "__main__":
 
     from timeit import default_timer as timer
     import argparse
+    import os.path
+    import src.utils
+    import pandas as pd
+    import scipy.io as sio
 
     #### Read parameters #####
     parser = argparse.ArgumentParser()
@@ -55,7 +124,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Get lon/lat, and gridcell dimensions
-    constants = utils.get_constants_from_args(args)
+    constants = src.utils.get_constants_from_args(args)
 
     # Parse constants
     g = constants["g"]
@@ -67,103 +136,48 @@ if __name__ == "__main__":
     L_S_gridcell = constants["L_S_gridcell"]
     L_EW_gridcell = constants["L_EW_gridcell"]
 
-    doy_indices = utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
+    doy_indices = src.utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
 
     ##### Begin the actual postprocessing ####
     start1 = timer()
 
-    N = len(doy_indices)  # number of days to process
-
-    E_per_day = np.zeros((N, len(latitude), len(longitude)))
-    E_track_per_day = np.zeros((N, len(latitude), len(longitude)))
-    P_per_day = np.zeros((N, len(latitude), len(longitude)))
-    Sa_track_down_per_day = np.zeros((N, len(latitude), len(longitude)))
-    Sa_track_top_per_day = np.zeros((N, len(latitude), len(longitude)))
-    W_down_per_day = np.zeros((N, len(latitude), len(longitude)))
-    W_top_per_day = np.zeros((N, len(latitude), len(longitude)))
-    north_loss_per_day = np.zeros((N, 1, len(longitude)))
-    south_loss_per_day = np.zeros((N, 1, len(longitude)))
-    down_to_top_per_day = np.zeros((N, len(latitude), len(longitude)))
-    top_to_down_per_day = np.zeros((N, len(latitude), len(longitude)))
-    water_lost_per_day = np.zeros((N, len(latitude), len(longitude)))
+    fluxes_daily = []
+    storage_daily = []
 
     for i, doy_idx in enumerate(doy_indices):
         ## i is the loop iteration, doy_idx is the index of the DOY
 
         start = timer()
-        datapath = data_path(y, doy_idx, years, timetracking)
+        datapath = data_path(year=args.year, doy_idx=doy_idx, fluxes_fp=args.fluxes_fp, tracked_moisture_fp=args.tracked_moisture_fp, output_fp=args.output_fp)
 
         # load tracked data
         loading_ST = sio.loadmat(datapath[0], verify_compressed_data_integrity=False)
-        Sa_track_top = loading_ST["Sa_track_top"]
-        Sa_track_down = loading_ST["Sa_track_down"]
-        north_loss = loading_ST["north_loss"]
-        south_loss = loading_ST["south_loss"]
-        down_to_top = loading_ST["down_to_top"]
-        top_to_down = loading_ST["top_to_down"]
-        water_lost = loading_ST["water_lost"]
-        Sa_track = Sa_track_top + Sa_track_down
-
-        # load the total moisture data
-        loading_FS = sio.loadmat(datapath[1], verify_compressed_data_integrity=False)
-        Fa_E_top = loading_FS["Fa_E_top"]
-        Fa_N_top = loading_FS["Fa_N_top"]
-        Fa_E_down = loading_FS["Fa_E_down"]
-        Fa_N_down = loading_FS["Fa_N_down"]
-        Fa_Vert = loading_FS["Fa_Vert"]
-        E = loading_FS["E"]
-        P = loading_FS["P"]
-        W_top = loading_FS["W_top"]
-        W_down = loading_FS["W_down"]
-
-        W = W_top + W_down
+        loading_FS = sio.loadmat(datapath[1], verify_compressed_data_integrity=False) 
+        storage, fluxes = get_xr(loading_ST=loading_ST, loading_FS=loading_FS, latitude=latitude, longitude=longitude)
 
         # compute tracked evaporation
-        E_track = E[:, :, :] * (Sa_track_down[1:, :, :] / W_down[1:, :, :])
+        tracked_to_total_frac = storage["Sa_track"] / storage["W"]
+        fluxes["E_track"] = fluxes["E"] * tracked_to_total_frac.sel(level="down")
 
-        # save per day
-        E_per_day[i, :, :] = np.sum(E, axis=0)
-        E_track_per_day[i, :, :] = np.sum(E_track, axis=0)
-        P_per_day[i, :, :] = np.sum(P, axis=0)
-        Sa_track_down_per_day[i, :, :] = np.mean(Sa_track_down[1:, :, :], axis=0)
-        Sa_track_top_per_day[i, :, :] = np.mean(Sa_track_top[1:, :, :], axis=0)
-        W_down_per_day[i, :, :] = np.mean(W_down[1:, :, :], axis=0)
-        W_top_per_day[i, :, :] = np.mean(W_top[1:, :, :], axis=0)
-
-        north_loss_per_day[i, :, :] = np.sum(north_loss, axis=0)
-        south_loss_per_day[i, :, :] = np.sum(south_loss, axis=0)
-        down_to_top_per_day[i, :, :] = np.sum(down_to_top, axis=0)
-        top_to_down_per_day[i, :, :] = np.sum(top_to_down, axis=0)
-        water_lost_per_day[i, :, :] = np.sum(water_lost, axis=0)
+        # compute daily avg/totals
+        fluxes_daily.append(fluxes.sum("time"), drop=True)
+        storage_daily.append(storage.mean("time"), drop=True) 
 
         end = timer()
         print(
-            "Runtime output for day " + str(doy_idx + 1) + " in year " + str(y) + " is",
+            "Runtime output for day " + str(doy_idx + 1) + " in year " + str(args.year) + " is",
             (end - start),
             " seconds.",
         )
+    
+    ## concatenate data from individual days
+    time_idx = src.utils.get_time_idx(doy_indices, args.year)
+    fluxes_daily = xr.concat(fluxes_daily, dim=time_idx)
+    storage_daily= xr.concat(storage_daily,dim=time_idx)
 
-    if daily == 1:
-        if timetracking == 0:  # create dummy values
-            Sa_time_down_per_day = 0
-            Sa_time_top_per_day = 0
-            E_time_per_day = 0
-
-        sio.savemat(
-            datapath[2],
-            {
-                "E_per_day": E_per_day,
-                "E_track_per_day": E_track_per_day,
-                "P_per_day": P_per_day,
-                "Sa_track_down_per_day": Sa_track_down_per_day,
-                "Sa_track_top_per_day": Sa_track_top_per_day,
-                "W_down_per_day": W_down_per_day,
-                "W_top_per_day": W_top_per_day,
-                "E_time_per_day": E_time_per_day,
-                "water_lost_per_day": water_lost_per_day,
-            },
-            do_compression=True,
-        )
+    ## save to file
+    fluxes_daily.to_netcdf(os.path.join(args.output_fp, f"fluxes_daily_{args.year}.nc"))
+    storage_daily.to_netcdf(os.path.join(args.output_fp,f"storage_daily_{args.year}.nc"))
 
     end1 = timer()
-    print("The total runtime of Con_E_Recyc_Output is", (end1 - start1), " seconds.")
+    print(f"The total runtime of Con_E_Recyc_Output is {end1 - start1:.2f} seconds.")

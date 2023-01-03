@@ -3,7 +3,13 @@ import xarray as xr
 import calendar
 import pickle
 from matplotlib.path import Path
+import pandas as pd
 
+def get_time_idx(doy_indices, year):
+    """get pandas datetime index from doy indices and year"""
+    dates = pd.date_range(start=f"{year}-01-01",freq='1D',periods=366) 
+    time_idx = pd.DatetimeIndex([dates[i] for i in doy_indices], name='time')
+    return time_idx
 
 def load_doy_list(fp):
     """load list of doy indices for moisture tracking"""

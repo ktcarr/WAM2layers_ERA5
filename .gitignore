@@ -3,5 +3,6 @@
 *.swp
 envs
 results
+*pycache*
 scripts/old
 scripts/.ipynb_checkpoints
