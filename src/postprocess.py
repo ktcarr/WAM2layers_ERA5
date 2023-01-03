@@ -125,16 +125,8 @@ if __name__ == "__main__":
 
     # Get lon/lat, and gridcell dimensions
     constants = src.utils.get_constants_from_args(args)
-
-    # Parse constants
-    g = constants["g"]
-    density_water = constants["density_water"]
     longitude = constants["longitude"]
     latitude = constants["latitude"]
-    A_gridcell = constants["A_gridcell"]
-    L_N_gridcell = constants["L_N_gridcell"]
-    L_S_gridcell = constants["L_S_gridcell"]
-    L_EW_gridcell = constants["L_EW_gridcell"]
 
     doy_indices = src.utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
 
@@ -160,8 +152,8 @@ if __name__ == "__main__":
         fluxes["E_track"] = fluxes["E"] * tracked_to_total_frac.sel(level="down")
 
         # compute daily avg/totals
-        fluxes_daily.append(fluxes.sum("time"), drop=True)
-        storage_daily.append(storage.mean("time"), drop=True) 
+        fluxes_daily.append(fluxes.sum("time"))
+        storage_daily.append(storage.mean("time"))
 
         end = timer()
         print(

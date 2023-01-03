@@ -88,4 +88,4 @@ python -u $LOCAL_FP/src/postprocess.py --year $1 \
                                        --tracked_moisture_fp $TRACKED_MOISTURE_FP \
                                        --output_fp $OUTPUT_FP \
                                        --doy_start 12 \
-                                       --doy_end 14
+                                       --doy_end 32
