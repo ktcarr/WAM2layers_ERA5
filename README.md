@@ -50,5 +50,5 @@ Scripts ending in ```_parallel.sh``` are used to parallelize across different ye
 ## Running the model
 1. Edit parameters as desired in the ```run.sh``` script.  
 2. Navigate to the ```./scripts``` folder. Running options:  
--- Run the model for a single year with ```./run.sh ${YEAR} ${DOY_START} ${DOY_END}```.
--- Run the model for 1979-2021 with ```./run_parallel.sh```.
+-- Run the model for a single year with ```./run.sh ${YEAR} ${DOY_START} ${DOY_END}```.  
+-- Run the model for 1979-2021 with ```./run_parallel.sh```.  
