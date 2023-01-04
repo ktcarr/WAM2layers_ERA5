@@ -9,8 +9,8 @@
 module load cdo
 
 ## Arguments to the script:
-## $1: year (int)
-## $2: directory in which to save the data (string)
+## $1: directory in which to save the data (string)
+## $2: year (int)
 
 INPUT_FP=$1
 YEAR=$2
@@ -36,3 +36,13 @@ echo "Merging pressure-level fields..."
 UVQ_FP="$ERA_FP/pressure-levels/3hr/uvq"
 cdo -b F64 -mergetime $UVQ_FP/uvq-$YEAR-*.nc $INPUT_FP/$YEAR-uvq.nc
 echo "Done."
+
+## Trim to smaller area
+for VARNAME in vert-int sp tcw evaporation total_precipitation uvq
+do
+    mv ${INPUT_FP}/${YEAR}-${VARNAME}.nc ${INPUT_FP}/${YEAR}-${VARNAME}_temp.nc
+    cdo sellonlatbox,0,359,80,-30 ${INPUT_FP}/${YEAR}-${VARNAME}_temp.nc ${INPUT_FP}/${YEAR}-${VARNAME}.nc
+    rm ${INPUT_FP}/${YEAR}-${VARNAME}_temp.nc
+done
+
+

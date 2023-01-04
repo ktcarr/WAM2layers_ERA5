@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ## Arguments to the script:
-## $1: year (int)
+## $1: input filepath (string)
 
 INPUT_FP=$1
 
