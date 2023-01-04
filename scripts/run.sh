@@ -28,14 +28,14 @@ REGION_FP=$DATA_FP/midwest_outline.csv
 ## Grid specific constants (lon/lat range and horiz. resolution) ##
 LON_MIN="   0" 
 LON_MAX=" 359"
-LAT_MIN=" -80"
+LAT_MIN=" -10"
 LAT_MAX="  80"
 DLAT=1
 DLON=1
 
 ## Numerical parameters ##
 TIMESTEP=10800 # units: seconds
-DIVT=45        # interpolation factor (for time)
+DIVT=30        # interpolation factor (for time)
 KVF=2          # vertical diffusivity
 COUNT_TIME=8   # number of timesteps to process at once
 BOUNDARY=29    # index of pressure level which divides model layers
