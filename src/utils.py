@@ -90,6 +90,14 @@ def get_doy_indices(doy_start, doy_end, year):
  
     return doy_indices
 
+def get_dates(doy_start, doy_end, year):
+    """Get daily-frequency datetime index for
+    specified doy range in given year"""
+    date_start = pd.to_datetime(f"{year}-{doy_start}",format="%Y-%j")
+    date_end = pd.to_datetime(f"{year}-{doy_end}",format="%Y-%j")
+    times = pd.date_range(start=date_start, end=date_end, freq='1D')
+    return dates
+
 
 def get_longitude(lon_min, lon_max, dlon):
     """Get longitude"""

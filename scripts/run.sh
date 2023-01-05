@@ -35,9 +35,10 @@ DLON=1
 
 ## Numerical parameters ##
 TIMESTEP=10800 # units: seconds
-DIVT=30        # interpolation factor (for time)
 KVF=2          # vertical diffusivity
-COUNT_TIME=8   # number of timesteps to process at once
+FREQ=8         # frequency of data (timesteps per day)
+FREQ_EP=24     # frequency of E and P data (timesteps per day)
+DIVT=30        # time interpolation factor (increase FREQ by this factor)
 BOUNDARY=29    # index of pressure level which divides model layers
 IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 
@@ -56,7 +57,8 @@ python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
                                       --timestep $TIMESTEP \
                                       --divt $DIVT \
                                       --boundary $BOUNDARY \
-                                      --count_time $COUNT_TIME \
+                                      --freq $FREQ \
+                                      --freq_ep $FREQ_EP \
                                       --is_global $IS_GLOBAL \
                                       --input_fp $INPUT_FP \
                                       --fluxes_fp $FLUXES_FP \
@@ -72,7 +74,7 @@ python -u $LOCAL_FP/src/backtrack.py --year $YEAR \
                                      --dlon $DLON \
                                      --divt $DIVT \
                                      --kvf $KVF \
-                                     --count_time $COUNT_TIME \
+                                     --freq $FREQ \
                                      --is_global $IS_GLOBAL \
                                      --fluxes_fp $FLUXES_FP \
                                      --input_fp $INPUT_FP \

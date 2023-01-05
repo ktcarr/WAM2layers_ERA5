@@ -26,11 +26,18 @@ def fix_lonlat(data):
 
     return data
 
-
-def safe_open(fp):
-    """wrapper-function for xr.open_dataset which standardizes lon/lat
-    coordinates using fix_lonlat"""
-    return fix_lonlat(xr.open_dataset(fp))
+def safe_open(fp, varname, longitude, latitude, times):
+    """Load data from specified fp. Get the specified varname,
+    longitude, latitude, and times. 
+    Make sure lon/lat dimensions are named consistently,
+    and that longitude is in range [0,360)"""
+    data = fix_lonlat(xr.open_dataset(fp))
+    data = data[varname].sel(
+        longitude=longitude,
+        latitude=latitude,
+        time=times)
+    
+    return data
 
 
 def get_fps(name, yearnumber, input_fp):
@@ -92,67 +99,77 @@ def get_datapath(yearnumber, a, input_fp, fluxes_fp):
         save_path,
     )
 
-
 def load_data(
     varname,
     fp,
     fp_next,
     latitude,
     longitude,
-    begin_time,
-    count_time,
-    is_final_time=False,
-):
+    date,
+    freq,
+    ):
     """Load specified data based, including handling end-of-year stuff"""
-    data = safe_open(fp)[varname]
 
-    ## Select specified lon/lat values
-    data = data.sel(latitude=latitude, longitude=longitude)
-    data = data.isel(time=slice(begin_time, begin_time + count_time + 1))
-    if is_final_time:
-        data_next = safe_open(fp_next)[varname]
-        data_next = data_next.sel(latitude=latitude, longitude=longitude)
-        data_next = data_next.isel(time=slice(0, 1))
-        data = xr.concat([data, data_next], dim="time")
-    data = data.transpose("time", ...)  # make sure time is zeroth dimension
-    return data
+    ## Get timesteps to load
+    times = pd.date_range(start=date, periods=freq+1, freq=f"{24/freq}H")
 
+    # Check if this is the last day in the year
+    is_end_of_year = (times[0].dt.year != times[-1].dt.year)
 
-def getUVQ(latitude, longitude, is_final_time, a, begin_time, count_time):
+    if is_end_of_year:
+        data = xr.concat([
+            safe_open(fp, varname, longitude, latitude, times[:-1]),
+            safe_open(fp_next, varname, longitude, latitude, times[-1])
+        ])
+    else:
+        data = safe_open(fp, varname, longitude, latitude, times)
+    
+    ## make sure dimension ordering is correct
+    data = data.transpose("time","latitude","longitude")
+
+    return data 
+
+def getUVQ(latitude, longitude, date, freq):
     """Load u,v,q data to memory"""
-    args = (latitude, longitude, begin_time, count_time, is_final_time)
-    load = lambda varname, fp, fp_next: load_data(varname, fp, fp_next, *args)
+    
+    def load(varname, fp, fp_next):
+        return load_data(
+            varname=varname, 
+            fp=fp, 
+            fp_next=fp_next, 
+            latitude=latitude,
+            longitude=longitude,
+            date=date,
+            freq=freq,
+        ) 
 
     q_f = load("q", datapath[2], datapath[3])
     u_f = load("u", datapath[6], datapath[7])
     v_f = load("v", datapath[8], datapath[9])
     uvq = np.stack([u_f.values, v_f.values, q_f.values], axis=0)
+
     return uvq
 
 
 def getPres(
     latitude,
     longitude,
-    is_final_time,
-    a,
-    begin_time,
-    count_time,
+    date,
+    freq,
     top_level=100,
     n_levels=37,
 ):
     """Get pressure levels, after adjusting for surface pressure. Also get pressure difference between levels"""
     # Get surface pressure
-    args = (
-        "sp",
-        datapath[0],
-        datapath[1],
-        latitude,
-        longitude,
-        begin_time,
-        count_time,
-        is_final_time,
-    )
-    sp = load_data(*args).values
+    sp = load_data( 
+        varname="sp",
+        fp=datapath[0],
+        fp_next=datapath[1],
+        latitude=latitude,
+        longitude=longitude,
+        date=date,
+        freq=freq,
+    ).values
 
     # Get original pressure levels and convert from hPa to Pa
     levels = xr.open_dataset(datapath[2])["level"].values * 100
@@ -183,11 +200,11 @@ def interp_timeslice(args):
     return new
 
 
-def interp_uvq(count_time):
+def interp_uvq(freq):
     """Interpolate the UVQ data to match the surface pressure"""
 
     # Interpolate in parallel (across variables and timesteps
-    time_idx = np.arange(count_time + 1)
+    time_idx = np.arange(freq + 1)
     var_idx = np.arange(3)
     with Pool(len(time_idx)) as p:
         new = p.map(interp_timeslice, [(t, i) for t in time_idx for i in var_idx])
@@ -204,28 +221,24 @@ def getW(
     dp,
     latitude,
     longitude,
-    is_final_time,
-    a,
-    begin_time,
-    count_time,
+    date,
+    freq,
     density_water,
     g,
     A_gridcell,
     boundary,
 ):
     """Load W data"""
-    args = (
-        "tcw",
-        datapath[4],
-        datapath[5],
-        latitude,
-        longitude,
-        begin_time,
-        count_time,
-        is_final_time,
-    )
-    tcw_ERA = load_data(*args).values
-
+    tcw_ERA = load_data(
+        varname="tcw",
+        fp=datapath[4],
+        fp_next=datapath[5],
+        latitude=latitude,
+        longitude=longitude,
+        date=date,
+        freq=freq,
+    ).values
+     
     # Compute column water vapor based on defined pressure levels
     q_ = (
         q[:, 1:] + q[:, :-1]
@@ -246,7 +259,7 @@ def getW(
     # put A_gridcell on a 3D grid
     A_gridcell2D = np.tile(A_gridcell, [1, len(longitude)])
     A_gridcell_1_2D = np.reshape(A_gridcell2D, [1, len(latitude), len(longitude)])
-    A_gridcell_plus3D = np.tile(A_gridcell_1_2D, [count_time + 1, 1, 1])
+    A_gridcell_plus3D = np.tile(A_gridcell_1_2D, [freq + 1, 1, 1])
 
     # water volumes - might be better to advect interpolated vapor totals here, instead of the ERA totals - not sure how accurate ERA totals are
     vapor_top = np.squeeze(np.sum(cwv[:, :boundary, ...], axis=1))
@@ -268,15 +281,21 @@ def getFa(
     cw,
     U,
     V,
-    count_time,
-    begin_time,
-    yearnumber,
-    a,
-    is_final_time,
+    freq,
+    date,
 ):
     """Get vertically integrated variables"""
-    args = (latitude, longitude, begin_time, count_time, is_final_time)
-    load = lambda varname, fp, fp_next: load_data(varname, fp, fp_next, *args)
+
+    def load(varname, fp, fp_next):
+        return load_data(
+            varname=varname,
+            fp=fp,
+            fp_next=fp_next,
+            latitude=latitude,
+            longitude=longitude,
+            date=date,
+            freq=freq,
+        )
 
     # load different variables
     ewvf = load("p71.162", datapath[10], datapath[11]).values
@@ -304,11 +323,11 @@ def getFa(
     Fa_N_top_uncorr = np.squeeze(np.sum(Fa_N_p[:, 0:boundary, :, :], 1))  # kg*m-1*s-1
 
     # correct down and top fluxes
-    corr_E = np.zeros([count_time + 1, len(latitude), len(longitude)])
-    corr_N = np.zeros([count_time + 1, len(latitude), len(longitude)])
+    corr_E = np.zeros([freq + 1, len(latitude), len(longitude)])
+    corr_N = np.zeros([freq + 1, len(latitude), len(longitude)])
     for i in range(len(longitude)):
         for j in range(len(latitude)):
-            for k in range(count_time + 1):
+            for k in range(freq + 1):
                 corr_E[k, j, i] = min(
                     2,
                     max(
@@ -340,19 +359,21 @@ def getFa(
 
 
 #%% Code
-def getEP(latitude, longitude, yearnumber, begin_time, count_time, A_gridcell):
+def getEP(latitude, longitude, date, freq_ep, A_gridcell):
     """Load evaporation and precipitation data into memory.
     Note ERA5 precip is hourly, unlike ERA-Interim, which was accumulated in 12-hour periods.
     See https://confluence.ecmwf.int/pages/viewpage.action?pageId=197702790 for details"""
-    # Frequency of evap/precip data is factor of 3 larger than flux data,
-    # so, multiply begin/count times by 3.
-    args = (latitude, longitude, begin_time * 3, count_time * 3, False)
 
-    # Unlike flux data, don't need fluxes for next timestep
-    # hence, ".isel(...,count_time*3)" and not ".isel(...,count_time*3+1)"
-    load = lambda varname, fp: load_data(varname, fp, None, *args).isel(
-        time=slice(None, count_time * 3)
-    )
+    def load(varname, fp):
+        return load_data(
+            varname=varname, 
+            fp=fp, 
+            fp_next=None, 
+            latitude=latitude,
+            longitude=longitude,
+            date=date,
+            freq=freq_ep-1, # Unlike flux data, don't need fluxes for next timestep
+        )
 
     evaporation = load("e", datapath[22]).values
     precipitation = load("tp", datapath[23]).values
@@ -364,17 +385,17 @@ def getEP(latitude, longitude, yearnumber, begin_time, count_time, A_gridcell):
             + np.maximum(np.reshape(evaporation, (np.size(evaporation))), 0.0),
             0.0,
         ),
-        (int(count_time * 3), len(latitude), len(longitude)),
+        (int(freq_ep), len(latitude), len(longitude)),
     )
     evaporation = np.reshape(
         np.abs(np.minimum(np.reshape(evaporation, (np.size(evaporation))), 0.0)),
-        (int(count_time * 3), len(latitude), len(longitude)),
+        (int(freq_ep), len(latitude), len(longitude)),
     )
 
     # calculate volumes
     A_gridcell2D = np.tile(A_gridcell, [1, len(longitude)])
     A_gridcell_1_2D = np.reshape(A_gridcell2D, [1, len(latitude), len(longitude)])
-    A_gridcell_max3D = np.tile(A_gridcell_1_2D, [count_time * 3, 1, 1])
+    A_gridcell_max3D = np.tile(A_gridcell_1_2D, [freq_ep, 1, 1])
 
     E = evaporation * A_gridcell_max3D
     P = precipitation * A_gridcell_max3D
@@ -393,50 +414,50 @@ def getrefined(
     E,
     P,
     divt,
-    count_time,
+    freq,
     latitude,
     longitude,
 ):
 
     # for hourly data (i.e., evap/precip)
     divt2 = divt / 3.0
-    oddvector2 = np.zeros((1, int(count_time * 3 * divt2)))
-    partvector2 = np.zeros((1, int(count_time * 3 * divt2)))
+    oddvector2 = np.zeros((1, int(freq * 3 * divt2)))
+    partvector2 = np.zeros((1, int(freq * 3 * divt2)))
     da = np.arange(1, divt2)
 
-    for o in np.arange(0, int(count_time * 3 * divt2), int(divt2)):
+    for o in np.arange(0, int(freq * 3 * divt2), int(divt2)):
         for i in range(len(da)):
             oddvector2[0, o + i] = (divt2 - da[i]) / divt2
             partvector2[0, o + i + 1] = da[i] / divt2
 
     E_small = np.nan * np.zeros(
-        (int(count_time * 3 * divt2), len(latitude), len(longitude))
+        (int(freq * 3 * divt2), len(latitude), len(longitude))
     )
-    for t in range(1, int(count_time * 3 * divt2) + 1):
+    for t in range(1, int(freq * 3 * divt2) + 1):
         E_small[t - 1] = (1.0 / divt2) * E[int(t / divt2 + oddvector2[0, t - 1] - 1)]
     E = E_small
 
     P_small = np.nan * np.zeros(
-        (int(count_time * 3 * divt2), len(latitude), len(longitude))
+        (int(freq * 3 * divt2), len(latitude), len(longitude))
     )
-    for t in range(1, int(count_time * 3 * divt2) + 1):
+    for t in range(1, int(freq * 3 * divt2) + 1):
         P_small[t - 1] = (1.0 / divt2) * P[int(t / divt2 + oddvector2[0, t - 1] - 1)]
     P = P_small
 
     # for 3 hourly info
-    oddvector = np.zeros((1, int(count_time * divt)))
-    partvector = np.zeros((1, int(count_time * divt)))
+    oddvector = np.zeros((1, int(freq * divt)))
+    partvector = np.zeros((1, int(freq * divt)))
     da = np.arange(1, divt)
     divt = float(divt)
-    for o in np.arange(0, int(count_time * divt), int(divt)):
+    for o in np.arange(0, int(freq * divt), int(divt)):
         for i in range(len(da)):
             oddvector[0, o + i] = (divt - da[i]) / divt
             partvector[0, o + i + 1] = da[i] / divt
 
     W_top_small = np.nan * np.zeros(
-        (int(count_time * divt + 1), len(latitude), len(longitude))
+        (int(freq * divt + 1), len(latitude), len(longitude))
     )
-    for t in range(1, int(count_time * divt) + 1):
+    for t in range(1, int(freq * divt) + 1):
         W_top_small[t - 1] = W_top[
             int(t / divt + oddvector[0, t - 1] - 1)
         ] + partvector[0, t - 1] * (
@@ -447,9 +468,9 @@ def getrefined(
     W_top = W_top_small
 
     W_down_small = np.nan * np.zeros(
-        (int(count_time * divt + 1), len(latitude), len(longitude))
+        (int(freq * divt + 1), len(latitude), len(longitude))
     )
-    for t in range(1, int(count_time * divt) + 1):
+    for t in range(1, int(freq * divt) + 1):
         W_down_small[t - 1] = W_down[
             int(t / divt + oddvector[0, t - 1] - 1)
         ] + partvector[0, t - 1] * (
@@ -460,18 +481,18 @@ def getrefined(
     W_down = W_down_small
 
     Fa_E_down_small = np.nan * np.zeros(
-        (int(count_time * divt), len(latitude), len(longitude))
+        (int(freq * divt), len(latitude), len(longitude))
     )
     Fa_N_down_small = np.nan * np.zeros(
-        (int(count_time * divt), len(latitude), len(longitude))
+        (int(freq * divt), len(latitude), len(longitude))
     )
     Fa_E_top_small = np.nan * np.zeros(
-        (int(count_time * divt), len(latitude), len(longitude))
+        (int(freq * divt), len(latitude), len(longitude))
     )
     Fa_N_top_small = np.nan * np.zeros(
-        (int(count_time * divt), len(latitude), len(longitude))
+        (int(freq * divt), len(latitude), len(longitude))
     )
-    for t in range(1, int(count_time * divt) + 1):
+    for t in range(1, int(freq * divt) + 1):
         Fa_E_down_small[t - 1] = Fa_E_down[int(t / divt + oddvector[0, t - 1] - 1)]
         Fa_N_down_small[t - 1] = Fa_N_down[int(t / divt + oddvector[0, t - 1] - 1)]
         Fa_E_top_small[t - 1] = Fa_E_top[int(t / divt + oddvector[0, t - 1] - 1)]
@@ -500,7 +521,7 @@ def get_stablefluxes(
     L_N_gridcell,
     L_S_gridcell,
     latitude,
-    count_time,
+    freq,
 ):
 
     # redefine according to units
@@ -518,10 +539,10 @@ def get_stablefluxes(
     )  # [s*m*kg*m^-1*s^-1*kg^-1*m^3]=[m3]
 
     Fa_N_top_swap = np.zeros(
-        (len(latitude), int(count_time * float(divt)), len(longitude))
+        (len(latitude), int(freq * float(divt)), len(longitude))
     )
     Fa_N_down_swap = np.zeros(
-        (len(latitude), int(count_time * float(divt)), len(longitude))
+        (len(latitude), int(freq * float(divt)), len(longitude))
     )
     Fa_N_top_kgpmps_swap = np.swapaxes(Fa_N_top_kgpmps, 0, 1)
     Fa_N_down_kgpmps_swap = np.swapaxes(Fa_N_down_kgpmps, 0, 1)
@@ -581,7 +602,7 @@ def get_stablefluxes(
             * stab
             * np.reshape(W_top[:-1, :, :], (np.size(W_top[:-1, :, :]))),
         ),
-        (int(count_time * float(divt)), len(latitude), len(longitude)),
+        (int(freq * float(divt)), len(latitude), len(longitude)),
     )
     Fa_N_top_stable = np.reshape(
         np.minimum(
@@ -597,7 +618,7 @@ def get_stablefluxes(
             * stab
             * np.reshape(W_top[:-1, :, :], (np.size(W_top[:-1, :, :]))),
         ),
-        (int(count_time * float(divt)), len(latitude), len(longitude)),
+        (int(freq * float(divt)), len(latitude), len(longitude)),
     )
     Fa_E_down_stable = np.reshape(
         np.minimum(
@@ -613,7 +634,7 @@ def get_stablefluxes(
             * stab
             * np.reshape(W_down[:-1, :, :], (np.size(W_down[:-1, :, :]))),
         ),
-        (int(count_time * float(divt)), len(latitude), len(longitude)),
+        (int(freq * float(divt)), len(latitude), len(longitude)),
     )
     Fa_N_down_stable = np.reshape(
         np.minimum(
@@ -629,7 +650,7 @@ def get_stablefluxes(
             * stab
             * np.reshape(W_down[:-1, :, :], (np.size(W_down[:-1, :, :]))),
         ),
-        (int(count_time * float(divt)), len(latitude), len(longitude)),
+        (int(freq * float(divt)), len(latitude), len(longitude)),
     )
 
     # get rid of the nan values
@@ -658,7 +679,7 @@ def getFa_Vert(
     W_top,
     W_down,
     divt,
-    count_time,
+    freq,
     latitude,
     longitude,
     is_global,
@@ -744,7 +765,7 @@ def getFa_Vert(
     residual_down = np.zeros(np.shape(P))  # residual factor [m3]
     residual_top = np.zeros(np.shape(P))  # residual factor [m3]
 
-    for t in range(int(count_time * divt)):
+    for t in range(int(freq * divt)):
         # down: calculate with moisture fluxes:
         Sa_after_Fa_down[0, 1:-1, :] = (
             W_down[t, 1:-1, :]
@@ -816,7 +837,7 @@ def getFa_Vert(
                 stab * np.reshape(W_down[1:, :, :], (np.size(W_down[1:, :, :]))),
             ),
         ),
-        (int(count_time * float(divt)), len(latitude), len(longitude)),
+        (int(freq * float(divt)), len(latitude), len(longitude)),
     )
 
     # redefine the vertical flux
@@ -859,7 +880,8 @@ if __name__ == "__main__":
     parser.add_argument("--timestep", dest="timestep", type=float, default=10800.0)
     parser.add_argument("--divt", dest="divt", type=int, default=45)
     parser.add_argument("--boundary", dest="boundary", type=int, default=29)
-    parser.add_argument("--count_time", dest="count_time", type=int, default=8)
+    parser.add_argument("--freq", dest="freq", type=int, default=8)
+    parser.add_argument("--freq_ep", dest="freq_ep", type=int, default=24)
     parser.add_argument("--is_global", dest="is_global", type=int, default=1)
 
     ## Data folders
@@ -882,10 +904,11 @@ if __name__ == "__main__":
     L_EW_gridcell = constants["L_EW_gridcell"]
 
     # Get days of year
-    doy_indices = src.utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
+    # doy_indices = src.utils.get_doy_indices(args.doy_start, args.doy_end, args.year)
+    dates = src.utils.get_dates(args.doy_start, args.doy_end, args.year)
 
     #### Loop through days
-    for doy_idx in doy_indices:  # a > 365 (366th index) and not a leapyear
+    for doy_idx, date in enumerate(dates):
         start = timer()
 
         # define save path
@@ -895,64 +918,58 @@ if __name__ == "__main__":
             input_fp=args.input_fp,
             fluxes_fp=args.fluxes_fp,
         )  # global variable
-
-        # below: the coefficient of a must be multiple of daily sampling frequency
-        # (e.g. 8/day for 3-hourly data)
-        begin_time = doy_idx * args.count_time
-
-        # check if this is the 
-        is_final_time = src.utils.is_last_doy_idx(args.year, doy_idx)
  
         # 1 Interpolate U,V,Q data to match surface pressure
         UVQ_RAW = getUVQ(
-            latitude, longitude, is_final_time, doy_idx, begin_time, args.count_time
+            latitude=latitude, 
+            longitude=longitude, 
+            date=date,
+            freq=args.freq,
         )
+
         Pres, DP, LEVELS = getPres(
-            latitude,
-            longitude,
-            is_final_time,
-            doy_idx,
-            begin_time,
-            args.count_time,
+            latitude=latitude,
+            longitude=longitude,
+            date=date, 
+            freq=args.freq,
             top_level=100,
             n_levels=37,
         )
-        U, V, Q = interp_uvq(args.count_time)
+        U, V, Q = interp_uvq(args.freq)
 
         # 2 integrate specific humidity to get the (total) column water (vapor)
         cw, W_top, W_down = getW(
-            Q,
-            DP,
-            latitude,
-            longitude,
-            is_final_time,
-            doy_idx,
-            begin_time,
-            args.count_time,
-            density_water,
-            g,
-            A_gridcell,
-            args.boundary,
+            q=Q,
+            dp=DP,
+            latitude=latitude,
+            longitude=longitude,
+            date=date, 
+            freq=args.freq,
+            density_water=density_water,
+            g=g,
+            A_gridcell=A_gridcell,
+            boundary=args.boundary,
         )
 
         # 3 calculate horizontal moisture fluxes
         Fa_E_top, Fa_N_top, Fa_E_down, Fa_N_down = getFa(
-            latitude,
-            longitude,
-            args.boundary,
-            cw,
-            U,
-            V,
-            args.count_time,
-            begin_time,
-            args.year,
-            doy_idx,
-            is_final_time,
+            latitude=latitude,
+            longitude=longitude,
+            boundary=args.boundary,
+            cw=cw,
+            U=U,
+            V=V,
+            freq=args.freq,
+            date=date,
         )
 
         # 4 evaporation and precipitation
         E, P = getEP(
-            latitude, longitude, args.year, begin_time, args.count_time, A_gridcell
+            latitude=latitude, 
+            longitude=longitude, 
+            date=date,
+            freq_ep=args.freq_ep, 
+            A_gridcell=A_gridcell,
         )
 
         # 5 put data on a smaller time step
@@ -975,7 +992,7 @@ if __name__ == "__main__":
             E,
             P,
             args.divt,
-            args.count_time,
+            args.freq,
             latitude,
             longitude,
         )
@@ -995,7 +1012,7 @@ if __name__ == "__main__":
             L_N_gridcell,
             L_S_gridcell,
             latitude,
-            args.count_time,
+            args.freq,
         )
 
         # 7 determine the vertical moisture flux
@@ -1009,7 +1026,7 @@ if __name__ == "__main__":
             W_top,
             W_down,
             args.divt,
-            args.count_time,
+            args.freq,
             latitude,
             longitude,
             args.is_global,
