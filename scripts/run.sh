@@ -28,7 +28,7 @@ REGION_FP=$DATA_FP/midwest_outline.csv
 ## Grid specific constants (lon/lat range and horiz. resolution) ##
 LON_MIN="   0" 
 LON_MAX=" 359"
-LAT_MIN=" -10"
+LAT_MIN=" -30"
 LAT_MAX="  80"
 DLAT=1
 DLON=1
