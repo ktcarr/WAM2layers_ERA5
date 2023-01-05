@@ -415,33 +415,35 @@ def getrefined(
     P,
     divt,
     freq,
+    freq_ep,
     latitude,
     longitude,
 ):
 
     # for hourly data (i.e., evap/precip)
-    divt2 = divt / 3.0
-    oddvector2 = np.zeros((1, int(freq * 3 * divt2)))
-    partvector2 = np.zeros((1, int(freq * 3 * divt2)))
-    da = np.arange(1, divt2)
+    # divt2 = divt / 3.0
+    divt_ep = divt * freq / freq_ep
+    oddvector2 = np.zeros((1, int(freq_ep * divt_ep)))
+    partvector2 = np.zeros((1, int(freq_ep * divt_ep)))
+    da = np.arange(1, divt_ep)
 
-    for o in np.arange(0, int(freq * 3 * divt2), int(divt2)):
+    for o in np.arange(0, int(freq_ep * divt_ep), int(divt_ep)):
         for i in range(len(da)):
-            oddvector2[0, o + i] = (divt2 - da[i]) / divt2
-            partvector2[0, o + i + 1] = da[i] / divt2
+            oddvector2[0, o + i] = (divt_ep - da[i]) / divt_ep
+            partvector2[0, o + i + 1] = da[i] / divt_ep
 
     E_small = np.nan * np.zeros(
-        (int(freq * 3 * divt2), len(latitude), len(longitude))
+        (int(freq_ep * divt_ep), len(latitude), len(longitude))
     )
-    for t in range(1, int(freq * 3 * divt2) + 1):
-        E_small[t - 1] = (1.0 / divt2) * E[int(t / divt2 + oddvector2[0, t - 1] - 1)]
+    for t in range(1, int(freq_ep * divt_ep) + 1):
+        E_small[t - 1] = (1.0 / divt_ep) * E[int(t / divt_ep + oddvector2[0, t - 1] - 1)]
     E = E_small
 
     P_small = np.nan * np.zeros(
-        (int(freq * 3 * divt2), len(latitude), len(longitude))
+        (int(freq_ep * divt_ep), len(latitude), len(longitude))
     )
-    for t in range(1, int(freq * 3 * divt2) + 1):
-        P_small[t - 1] = (1.0 / divt2) * P[int(t / divt2 + oddvector2[0, t - 1] - 1)]
+    for t in range(1, int(freq_ep * divt_ep) + 1):
+        P_small[t - 1] = (1.0 / divt_ep) * P[int(t / divt_ep + oddvector2[0, t - 1] - 1)]
     P = P_small
 
     # for 3 hourly info
@@ -514,7 +516,6 @@ def get_stablefluxes(
     Fa_E_down_1,
     Fa_N_top_1,
     Fa_N_down_1,
-    timestep,
     divt,
     L_EW_gridcell,
     density_water,
@@ -529,6 +530,9 @@ def get_stablefluxes(
     Fa_E_down_kgpmps = Fa_E_down_1
     Fa_N_top_kgpmps = Fa_N_top_1
     Fa_N_down_kgpmps = Fa_N_down_1
+
+    # compute number of seconds in timestep
+    timestep = freq * 3600 # units: (1/hr)*(s/hr)=s
 
     # convert to m3
     Fa_E_top = (
@@ -877,7 +881,6 @@ if __name__ == "__main__":
     parser.add_argument("--dlon", dest="dlon", type=float, default=1.0)
 
     ## Numerical parameters
-    parser.add_argument("--timestep", dest="timestep", type=float, default=10800.0)
     parser.add_argument("--divt", dest="divt", type=int, default=45)
     parser.add_argument("--boundary", dest="boundary", type=int, default=29)
     parser.add_argument("--freq", dest="freq", type=int, default=8)
@@ -983,29 +986,30 @@ if __name__ == "__main__":
             W_top,
             W_down,
         ) = getrefined(
-            Fa_E_top,
-            Fa_N_top,
-            Fa_E_down,
-            Fa_N_down,
-            W_top,
-            W_down,
-            E,
-            P,
-            args.divt,
-            args.freq,
-            latitude,
-            longitude,
+            Fa_E_top=Fa_E_top,
+            Fa_N_top=Fa_N_top,
+            Fa_E_down=Fa_E_down,
+            Fa_N_down=Fa_N_down,
+            W_top=W_top,
+            W_down=W_down,
+            E=E,
+            P=P,
+            divt=args.divt,
+            freq=args.freq,
+            freq_ep=args.freq_ep,
+            latitude=latitude,
+            longitude=longitude,
         )
 
         # 6 stabilize horizontal fluxes and get everything in (m3 per smaller timestep)
         Fa_E_top, Fa_E_down, Fa_N_top, Fa_N_down = get_stablefluxes(
-            W_top,
-            W_down,
-            Fa_E_top_1,
-            Fa_E_down_1,
-            Fa_N_top_1,
-            Fa_N_down_1,
-            args.timestep,
+            W_top=W_top,
+            W_down=W_down,
+            Fa_E_top_1=Fa_E_top_1,
+            Fa_E_down_1=Fa_E_down_1,
+            Fa_N_top_1=Fa_N_top_1,
+            Fa_N_down_1=Fa_N_down_1,
+            timestep=args.timestep,
             args.divt,
             L_EW_gridcell,
             density_water,

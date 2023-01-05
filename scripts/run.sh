@@ -34,7 +34,6 @@ DLAT=1
 DLON=1
 
 ## Numerical parameters ##
-TIMESTEP=10800 # units: seconds
 KVF=2          # vertical diffusivity
 FREQ=8         # frequency of data (timesteps per day)
 FREQ_EP=24     # frequency of E and P data (timesteps per day)
@@ -54,7 +53,6 @@ python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
                                       --lat_max $LAT_MAX \
                                       --dlat $DLAT \
                                       --dlon $DLON \
-                                      --timestep $TIMESTEP \
                                       --divt $DIVT \
                                       --boundary $BOUNDARY \
                                       --freq $FREQ \
