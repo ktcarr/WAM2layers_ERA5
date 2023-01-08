@@ -95,7 +95,7 @@ def get_dates(doy_start, doy_end, year):
     specified doy range in given year"""
     date_start = pd.to_datetime(f"{year}-{doy_start}",format="%Y-%j")
     date_end = pd.to_datetime(f"{year}-{doy_end}",format="%Y-%j")
-    times = pd.date_range(start=date_start, end=date_end, freq='1D')
+    dates = pd.date_range(start=date_start, end=date_end, freq='1D')
     return dates
 
 

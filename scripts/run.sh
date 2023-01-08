@@ -42,8 +42,8 @@ BOUNDARY=29    # index of pressure level which divides model layers
 IS_GLOBAL=1    # does the eastern boundary touch the western boundary?
 
 # load environment
-module load mambaforge
-source activate $LOCAL_FP/envs
+# module load mambaforge
+# source activate $LOCAL_FP/envs
 
 # run the model
 python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
@@ -63,33 +63,33 @@ python -u $LOCAL_FP/src/get_fluxes.py --year $YEAR \
                                       --doy_start $DOY_START \
                                       --doy_end $DOY_END
 
-python -u $LOCAL_FP/src/backtrack.py --year $YEAR \
-                                     --lon_min $LON_MIN \
-                                     --lon_max $LON_MAX \
-                                     --lat_min $LAT_MIN \
-                                     --lat_max $LAT_MAX \
-                                     --dlat $DLAT \
-                                     --dlon $DLON \
-                                     --divt $DIVT \
-                                     --kvf $KVF \
-                                     --freq $FREQ \
-                                     --is_global $IS_GLOBAL \
-                                     --fluxes_fp $FLUXES_FP \
-                                     --input_fp $INPUT_FP \
-                                     --tracked_moisture_fp $TRACKED_MOISTURE_FP \
-                                     --region_fp $REGION_FP \
-                                     --doy_start $DOY_START \
-                                     --doy_end $DOY_END
-
-python -u $LOCAL_FP/src/postprocess.py --year $YEAR \
-                                       --lon_min $LON_MIN \
-                                       --lon_max $LON_MAX \
-                                       --lat_min $LAT_MIN \
-                                       --lat_max $LAT_MAX \
-                                       --dlat $DLAT \
-                                       --dlon $DLON \
-                                       --fluxes_fp $FLUXES_FP \
-                                       --tracked_moisture_fp $TRACKED_MOISTURE_FP \
-                                       --output_fp $OUTPUT_FP \
-                                       --doy_start $DOY_START \
-                                       --doy_end $DOY_END
+# python -u $LOCAL_FP/src/backtrack.py --year $YEAR \
+#                                      --lon_min $LON_MIN \
+#                                      --lon_max $LON_MAX \
+#                                      --lat_min $LAT_MIN \
+#                                      --lat_max $LAT_MAX \
+#                                      --dlat $DLAT \
+#                                      --dlon $DLON \
+#                                      --divt $DIVT \
+#                                      --kvf $KVF \
+#                                      --freq $FREQ \
+#                                      --is_global $IS_GLOBAL \
+#                                      --fluxes_fp $FLUXES_FP \
+#                                      --input_fp $INPUT_FP \
+#                                      --tracked_moisture_fp $TRACKED_MOISTURE_FP \
+#                                      --region_fp $REGION_FP \
+#                                      --doy_start $DOY_START \
+#                                      --doy_end $DOY_END
+# 
+# python -u $LOCAL_FP/src/postprocess.py --year $YEAR \
+#                                        --lon_min $LON_MIN \
+#                                        --lon_max $LON_MAX \
+#                                        --lat_min $LAT_MIN \
+#                                        --lat_max $LAT_MAX \
+#                                        --dlat $DLAT \
+#                                        --dlon $DLON \
+#                                        --fluxes_fp $FLUXES_FP \
+#                                        --tracked_moisture_fp $TRACKED_MOISTURE_FP \
+#                                        --output_fp $OUTPUT_FP \
+#                                        --doy_start $DOY_START \
+#                                        --doy_end $DOY_END

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import xarray as xr
 from scipy.interpolate import interp1d
 from multiprocessing import Pool
@@ -40,36 +41,41 @@ def safe_open(fp, varname, longitude, latitude, times):
     return data
 
 
-def get_fps(name, yearnumber, input_fp):
+def get_fps(name, year, input_fp):
     """Get filepaths for given variable ('name') and year"""
     sep = "-"  # if name=='uvq' else '_'
-    fp0 = join(input_fp, f"{yearnumber}{sep}{name}.nc")
-    fp1 = join(input_fp, f"{yearnumber+1}{sep}{name}.nc")
+    fp0 = join(input_fp, f"{year}{sep}{name}.nc")
+    fp1 = join(input_fp, f"{year+1}{sep}{name}.nc")
     return fp0, fp1
 
 
 # other scripts use exactly this sequence, do not change it unless you change it also in the scripts
-def get_datapath(yearnumber, a, input_fp, fluxes_fp):
+def get_datapath(date, input_fp, fluxes_fp):
     """Get filepaths for data loading and saving"""
 
-    sp_data, sp_eoy_data = get_fps("sp", yearnumber, input_fp)
-    tcw_data, tcw_eoy_data = get_fps("tcw", yearnumber, input_fp)
+    # Get year, DOY, and DOY-index
+    year = date.year
+    doy = date.dayofyear
+    doy_idx = doy-1
 
-    ewvf_data, ewvf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
-    nwvf_data, nwvf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
-    eclwf_data, eclwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
-    nclwf_data, nclwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
-    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
-    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", yearnumber, input_fp)
+    sp_data, sp_eoy_data = get_fps("sp", year, input_fp)
+    tcw_data, tcw_eoy_data = get_fps("tcw", year, input_fp)
 
-    u_f_data, u_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
-    v_f_data, v_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
-    q_f_data, q_f_eoy_data = get_fps("uvq", yearnumber, input_fp)
+    ewvf_data, ewvf_eoy_data = get_fps("vert-int", year, input_fp)
+    nwvf_data, nwvf_eoy_data = get_fps("vert-int", year, input_fp)
+    eclwf_data, eclwf_eoy_data = get_fps("vert-int", year, input_fp)
+    nclwf_data, nclwf_eoy_data = get_fps("vert-int", year, input_fp)
+    ecfwf_data, ecfwf_eoy_data = get_fps("vert-int", year, input_fp)
+    ncfwf_data, ncfwf_eoy_data = get_fps("vert-int", year, input_fp)
 
-    evaporation_data = get_fps("evaporation", yearnumber, input_fp)[0]
-    precipitation_data = get_fps("total_precipitation", yearnumber, input_fp)[0]
+    u_f_data, u_f_eoy_data = get_fps("uvq", year, input_fp)
+    v_f_data, v_f_eoy_data = get_fps("uvq", year, input_fp)
+    q_f_data, q_f_eoy_data = get_fps("uvq", year, input_fp)
 
-    save_path = join(fluxes_fp, str(yearnumber) + "-" + str(a) + "fluxes_storages.mat")
+    evaporation_data = get_fps("evaporation", year, input_fp)[0]
+    precipitation_data = get_fps("total_precipitation", year, input_fp)[0]
+
+    save_path = join(fluxes_fp, str(year) + "-" + str(doy_idx) + "fluxes_storages.mat")
 
     return (
         sp_data,
@@ -107,25 +113,30 @@ def load_data(
     longitude,
     date,
     freq,
+    get_next_day=True,
     ):
-    """Load specified data based, including handling end-of-year stuff"""
+    """Load specified data based, including handling end-of-year stuff.
+    'get_next_day' is a boolean specifying whether to get first timestep
+    of data from the next day"""
 
     ## Get timesteps to load
-    times = pd.date_range(start=date, periods=freq+1, freq=f"{24/freq}H")
+    n_periods = (freq + 1) if get_next_day else freq
+    times = pd.date_range(start=date, periods=n_periods, freq=f"{24/freq}H")
 
     # Check if this is the last day in the year
-    is_end_of_year = (times[0].dt.year != times[-1].dt.year)
+    is_end_of_year = (times[0].year != times[-1].year)
 
-    if is_end_of_year:
+    if is_end_of_year: 
         data = xr.concat([
             safe_open(fp, varname, longitude, latitude, times[:-1]),
             safe_open(fp_next, varname, longitude, latitude, times[-1])
-        ])
-    else:
+        ], dim="time",
+        )
+    else: 
         data = safe_open(fp, varname, longitude, latitude, times)
     
     ## make sure dimension ordering is correct
-    data = data.transpose("time","latitude","longitude")
+    data = data.transpose("time",...)
 
     return data 
 
@@ -372,7 +383,8 @@ def getEP(latitude, longitude, date, freq_ep, A_gridcell):
             latitude=latitude,
             longitude=longitude,
             date=date,
-            freq=freq_ep-1, # Unlike flux data, don't need fluxes for next timestep
+            freq=freq_ep, 
+            get_next_day=False,
         )
 
     evaporation = load("e", datapath[22]).values
@@ -911,13 +923,13 @@ if __name__ == "__main__":
     dates = src.utils.get_dates(args.doy_start, args.doy_end, args.year)
 
     #### Loop through days
-    for doy_idx, date in enumerate(dates):
+    for date in dates:
+
         start = timer()
 
         # define save path
         datapath = get_datapath(
-            args.year,
-            doy_idx,
+            date=date,
             input_fp=args.input_fp,
             fluxes_fp=args.fluxes_fp,
         )  # global variable
@@ -1009,31 +1021,30 @@ if __name__ == "__main__":
             Fa_E_down_1=Fa_E_down_1,
             Fa_N_top_1=Fa_N_top_1,
             Fa_N_down_1=Fa_N_down_1,
-            timestep=args.timestep,
-            args.divt,
-            L_EW_gridcell,
-            density_water,
-            L_N_gridcell,
-            L_S_gridcell,
-            latitude,
-            args.freq,
+            divt=args.divt,
+            L_EW_gridcell=L_EW_gridcell,
+            density_water=density_water,
+            L_N_gridcell=L_N_gridcell,
+            L_S_gridcell=L_S_gridcell,
+            latitude=latitude,
+            freq=args.freq,
         )
 
         # 7 determine the vertical moisture flux
         Fa_Vert_raw, Fa_Vert = getFa_Vert(
-            Fa_E_top,
-            Fa_E_down,
-            Fa_N_top,
-            Fa_N_down,
-            E,
-            P,
-            W_top,
-            W_down,
-            args.divt,
-            args.freq,
-            latitude,
-            longitude,
-            args.is_global,
+            Fa_E_top=Fa_E_top,
+            Fa_E_down=Fa_E_down,
+            Fa_N_top=Fa_N_top,
+            Fa_N_down=Fa_N_down,
+            E=E,
+            P=P,
+            W_top=W_top,
+            W_down=W_down,
+            divt=args.divt,
+            freq=args.freq,
+            latitude=latitude,
+            longitude=longitude,
+            is_global=args.is_global,
         )
 
         sio.savemat(
@@ -1053,7 +1064,7 @@ if __name__ == "__main__":
         )
 
         end = timer()
-        print(f"get_fluxes runtime for day {doy_idx+1}: {end - start : .2f} sec.")
+        print(f"get_fluxes {date.year}-{date.month:02d}-{date.day:02d}: {end - start : .2f} sec.")
 
     end1 = timer()
     print(f"Total get_fluxes runtime for {args.year}: {end1 - start1 : .2f} seconds.")
