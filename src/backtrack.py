@@ -6,11 +6,11 @@ import scipy.io as sio
 import os
 
 
-def create_empty_array(count_time, divt, latitude, longitude, fp):
+def create_empty_array(freq, divt, latitude, longitude, fp):
     """Create empty array at specified filepath  (dummy array for backtracking)."""
 
     ## dimensions for empty array
-    dims = (int(count_time * divt) + 1, len(latitude), len(longitude))
+    dims = (int(freq * divt) + 1, len(latitude), len(longitude))
     Sa_track_top = np.zeros(dims)
     Sa_track_down = np.zeros(dims)
 
@@ -48,7 +48,7 @@ def data_path(previous_data_to_load, year, doy_idx, fluxes_fp, tracked_moisture_
 def get_Sa_track_backward(
     latitude,
     longitude,
-    count_time,
+    freq,
     divt,
     Kvf,
     Region,
@@ -194,8 +194,8 @@ def get_Sa_track_backward(
     Sa_S_top = np.zeros(np.shape(Sa_track_top_last))
 
     # define variables that find out what happens to the water
-    north_loss = np.zeros((int(count_time * divt), 1, len(longitude)))
-    south_loss = np.zeros((int(count_time * divt), 1, len(longitude)))
+    north_loss = np.zeros((int(freq * divt), 1, len(longitude)))
+    south_loss = np.zeros((int(freq * divt), 1, len(longitude)))
     down_to_top = np.zeros(np.shape(P))
     top_to_down = np.zeros(np.shape(P))
     water_lost = np.zeros(np.shape(P))
@@ -203,7 +203,7 @@ def get_Sa_track_backward(
     water_lost_top = np.zeros(np.shape(P))
 
     # Sa calculation backward in time
-    for t in np.arange(int(count_time * divt), 0, -1):
+    for t in np.arange(int(freq * divt), 0, -1):
         # down: define values of total moisture
         Sa_E_down[0, :, :-1] = W_down[
             t, :, 1:
@@ -498,7 +498,7 @@ if __name__ == "__main__":
     ## Numerical parameters
     parser.add_argument("--divt", dest="divt", default=45, type=int)
     parser.add_argument("--kvf", dest="kvf", default=2.0, type=float)
-    parser.add_argument("--count_time", dest="count_time", default=8, type=int)
+    parser.add_argument("--freq", dest="freq", default=8, type=int)
     parser.add_argument("--is_global", dest="is_global", default=1, type=int)
 
     ## Data folders
@@ -563,7 +563,7 @@ if __name__ == "__main__":
         ## Create 'dummy' array for first backtracking step
         if doy_idx == doy_indices[0]:
             create_empty_array( 
-                args.count_time, args.divt, latitude, longitude, datapath[0]
+                args.freq, args.divt, latitude, longitude, datapath[0]
             )
 
         loading_ST = sio.loadmat(datapath[0], verify_compressed_data_integrity=False)
@@ -606,7 +606,7 @@ if __name__ == "__main__":
         ) = get_Sa_track_backward(
             latitude,
             longitude,
-            args.count_time,
+            args.freq,
             args.divt,
             args.kvf,
             Region,
@@ -639,7 +639,7 @@ if __name__ == "__main__":
         )
 
         end = timer()
-        print(f"Backtrack time for day {doy_idx+1}: {end-start:.2f} seconds")
+        print(f"backtrack runtime for day {doy_idx+1}: {end-start:.1f} seconds")
 
     end1 = timer()
-    print(f"Total runtime for backtracking is {end1 - start1:.2f} seconds.")
+    print(f"Total runtime for backtracking is {end1 - start1:.1f} seconds.")

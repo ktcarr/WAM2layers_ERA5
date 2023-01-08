@@ -156,7 +156,7 @@ if __name__ == "__main__":
         storage_daily.append(storage.mean("time"))
 
         end = timer()
-        print(f"Postprocess runtime for day {doy_idx+1}: {end-start:.2f} seconds")
+        print(f"postprocess runtime for day {doy_idx+1}: {end-start:.2f} seconds")
    
     ## concatenate data from individual days
     time_idx = src.utils.get_time_idx(doy_indices, args.year)
@@ -168,4 +168,4 @@ if __name__ == "__main__":
     storage_daily.to_netcdf(os.path.join(args.output_fp,f"storage_daily_{args.year}.nc"))
 
     end1 = timer()
-    print(f"The total runtime of Con_E_Recyc_Output is {end1 - start1:.2f} seconds.")
+    print(f"Total runtime is {end1 - start1:.1f} seconds.")

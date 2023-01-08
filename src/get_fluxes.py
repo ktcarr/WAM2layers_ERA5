@@ -1064,7 +1064,7 @@ if __name__ == "__main__":
         )
 
         end = timer()
-        print(f"get_fluxes {date.year}-{date.month:02d}-{date.day:02d}: {end - start : .2f} sec.")
+        print(f"get_fluxes runtime for {date.year}-{date.month:02d}-{date.day:02d}: {end - start : .1f} sec.")
 
     end1 = timer()
-    print(f"Total get_fluxes runtime for {args.year}: {end1 - start1 : .2f} seconds.")
+    print(f"Total get_fluxes runtime for {args.year}: {end1 - start1 : .1f} seconds.")
