@@ -72,6 +72,14 @@ def makeMask(vertices, lat, lon, lsm=None):
 
     return mask
 
+## check doy_end is valid
+def fix_doy_end(doy_end, year):
+    """Handle last day of year: if doy_end==-1, change
+    to actual last day of year."""
+    
+    is_leap_year = int(calendar.isleap(year))
+    doy_end_   = 365 + is_leap_year if (doy_end==-1) else doy_end
+    return doy_end_
 
 ## get indices for day of year
 def get_doy_indices(doy_start, doy_end, year):
@@ -80,9 +88,8 @@ def get_doy_indices(doy_start, doy_end, year):
     If doy_end==-1, set doy_end to the last day
     in the calendar year"""
 
-    # handle leap year value
-    is_leap_year = int(calendar.isleap(year))
-    doy_end_   = 365 + is_leap_year if (doy_end==-1) else doy_end
+    # handle leap year value 
+    doy_end_ = fix_doy_end(doy_end, year)
 
     # get array of values
     doy         = np.arange(doy_start, doy_end_+1)
@@ -93,8 +100,12 @@ def get_doy_indices(doy_start, doy_end, year):
 def get_dates(doy_start, doy_end, year):
     """Get daily-frequency datetime index for
     specified doy range in given year"""
+    # handle end of year
+    doy_end_ = fix_doy_end(doy_end, year)
+
+    # Get date range
     date_start = pd.to_datetime(f"{year}-{doy_start}",format="%Y-%j")
-    date_end = pd.to_datetime(f"{year}-{doy_end}",format="%Y-%j")
+    date_end = pd.to_datetime(f"{year}-{doy_end_}",format="%Y-%j")
     dates = pd.date_range(start=date_start, end=date_end, freq='1D')
     return dates
 
