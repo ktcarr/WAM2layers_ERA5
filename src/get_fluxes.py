@@ -544,7 +544,7 @@ def get_stablefluxes(
     Fa_N_down_kgpmps = Fa_N_down_1
 
     # compute number of seconds in timestep
-    timestep = freq * 3600 # units: (1/hr)*(s/hr)=s
+    timestep = 1/freq * 24 * 3600 # units: (days) * (hours/day) * (sec/hour) = sec
 
     # convert to m3
     Fa_E_top = (
