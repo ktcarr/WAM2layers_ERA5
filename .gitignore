@@ -1,7 +1,8 @@
 *.egg-info
 *.log
 *.swp
-envs
+envs*
+tests
 results
 *pycache*
 scripts/old
